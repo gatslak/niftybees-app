@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PreMkt">
+<title>NIFTYBEES Pre-Market</title>
+<style>
+
+:root{
+  --bg:#0B1120;
+  --surface:#121B30;
+  --surface-2:#182543;
+  --line:#233257;
+  --gold:#D4A24C;
+  --gold-dim:#8A6F3C;
+  --bull:#3FB68B;
+  --bear:#E2604F;
+  --text:#E8ECF4;
+  --muted:#7C8AA5;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);}
+body{
+  font-family:Georgia,'Times New Roman',serif;
+  padding:20px 16px 48px;
+  max-width:520px;
+  margin:0 auto;
+  -webkit-font-smoothing:antialiased;
+}
+.header{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  margin-bottom:18px;
+}
+.brand{
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:600;
+  font-size:22px;
+  letter-spacing:-0.01em;
+}
+.brand span{color:var(--gold);}
+.timestamp{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:11px;
+  color:var(--muted);
+}
+
+/* ---- Price card ---- */
+.price-card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px 18px;
+  margin-bottom:14px;
+}
+.price-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+}
+.price-value{
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:600;
+  font-size:30px;
+  margin-top:2px;
+}
+.price-change{text-align:right;}
+.price-pct{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:14px;
+  display:block;
+  margin-top:4px;
+}
+.price-pct.bull{color:var(--bull);}
+.price-pct.bear{color:var(--bear);}
+
+/* ---- Gauge card ---- */
+.gauge-card{
+  background:linear-gradient(180deg,var(--surface),var(--surface-2));
+  border:1px solid var(--line);
+  border-radius:20px;
+  padding:22px 20px 18px;
+  margin-bottom:16px;
+  text-align:center;
+}
+.gauge-wrap{position:relative;width:220px;height:120px;margin:0 auto 6px;}
+.gauge-label{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:10px;
+  letter-spacing:0.08em;
+  color:var(--muted);
+  text-transform:uppercase;
+}
+.verdict{
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:600;
+  font-size:26px;
+  margin:4px 0 2px;
+}
+.verdict.bull{color:var(--bull);}
+.verdict.bear{color:var(--bear);}
+.verdict.neutral{color:var(--gold);}
+.score-line{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:12px;
+  color:var(--muted);
+}
+.disclaimer{
+  font-size:11px;
+  color:var(--muted);
+  margin-top:10px;
+  line-height:1.5;
+}
+
+/* ---- Refresh button ---- */
+.refresh-btn{
+  width:100%;
+  background:var(--gold);
+  color:#1A1305;
+  border:none;
+  border-radius:12px;
+  padding:13px;
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:600;
+  font-size:14px;
+  margin-bottom:18px;
+  cursor:pointer;
+}
+.refresh-btn:active{opacity:0.85;}
+.refresh-btn:disabled{opacity:0.5;}
+
+/* ---- Source cards ---- */
+.section-title{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:10px;
+  letter-spacing:0.1em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin:22px 0 8px 2px;
+}
+.card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:14px 16px;
+  margin-bottom:10px;
+}
+.card-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.card-name{font-size:13px;font-weight:500;}
+.badge{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:10px;
+  padding:3px 8px;
+  border-radius:20px;
+  letter-spacing:0.03em;
+}
+.badge.live{background:rgba(63,182,139,0.15);color:var(--bull);}
+.badge.failed{background:rgba(226,96,79,0.15);color:var(--bear);}
+.badge.pending{background:rgba(124,138,165,0.15);color:var(--muted);}
+.card-value{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:20px;
+  margin-top:8px;
+}
+.card-value.bull{color:var(--bull);}
+.card-value.bear{color:var(--bear);}
+.card-sub{font-size:11px;color:var(--muted);margin-top:3px;}
+.manual-row{margin-top:10px;display:flex;gap:8px;}
+.manual-row input{
+  flex:1;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  color:var(--text);
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:13px;
+  padding:8px 10px;
+}
+.manual-row button{
+  background:var(--surface-2);
+  border:1px solid var(--gold-dim);
+  color:var(--gold);
+  border-radius:8px;
+  padding:8px 12px;
+  font-size:12px;
+  font-family:Georgia,'Times New Roman',serif;
+  cursor:pointer;
+}
+
+/* ---- Calculator ---- */
+.calc-card{padding:16px;}
+.mode-toggle{
+  display:flex;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:3px;
+  margin-bottom:14px;
+}
+.mode-btn{
+  flex:1;
+  background:transparent;
+  border:none;
+  border-radius:7px;
+  color:var(--muted);
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:600;
+  font-size:13px;
+  padding:9px 0;
+  cursor:pointer;
+}
+.mode-btn.active{
+  background:var(--gold);
+  color:#1A1305;
+}
+.mtf-only{display:none;}
+.mtf-only.show{display:block;}
+.calc-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.calc-row label{font-size:12.5px;color:var(--muted);flex:1;}
+.calc-row input{
+  width:130px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  color:var(--text);
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:14px;
+  padding:8px 10px;
+  text-align:right;
+}
+.calc-table{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;}
+.calc-empty{font-size:12px;color:var(--muted);}
+.calc-scenario{margin-bottom:16px;}
+.calc-scenario:last-child{margin-bottom:0;}
+.calc-scenario-title{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:11px;
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  color:var(--gold);
+  margin-bottom:8px;
+}
+.calc-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px 14px;
+}
+.calc-col-head{
+  font-size:11px;
+  color:var(--muted);
+  border-bottom:1px solid var(--line);
+  padding-bottom:4px;
+}
+.calc-line{
+  display:flex;
+  justify-content:space-between;
+  font-size:12.5px;
+  padding:3px 0;
+}
+.calc-line .lbl{color:var(--muted);}
+.calc-line .val{font-family:Georgia,'Times New Roman',serif;}
+.calc-line .val.bull{color:var(--bull);}
+.calc-line .val.bear{color:var(--bear);}
+
+.calc-summary{
+  margin-top:16px;
+  padding-top:14px;
+  border-top:1px solid var(--line);
+}
+.calc-summary-title{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:11px;
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:10px;
+}
+.summary-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+}
+.summary-item{
+  background:var(--surface-2);
+  border-radius:10px;
+  padding:10px 12px;
+}
+.summary-item .s-label{
+  font-size:11px;
+  color:var(--muted);
+  margin-bottom:4px;
+}
+.summary-item .s-amount{
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:600;
+  font-size:18px;
+}
+.summary-item .s-amount.bull{color:var(--bull);}
+.summary-item .s-amount.bear{color:var(--bear);}
+
+/* weights */
+details{margin-top:20px;}
+summary{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:11px;
+  color:var(--muted);
+  cursor:pointer;
+  letter-spacing:0.05em;
+}
+.weight-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin:10px 0;
+  font-size:12px;
+}
+.weight-row input{width:110px;accent-color:var(--gold);}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand">NIFTY<span>BEES</span> · Pre-Market</div>
+</div>
+<div class="timestamp" id="lastRun">Not run yet</div>
+
+<div class="price-card">
+  <div class="price-top">
+    <div>
+      <div class="gauge-label">NIFTYBEES.NS</div>
+      <div class="price-value" id="price-value">--</div>
+    </div>
+    <div class="price-change">
+      <span class="badge pending" id="badge-price">pending</span>
+      <span class="price-pct" id="price-pct"></span>
+    </div>
+  </div>
+  <div class="card-sub" id="sub-price">Prev close --</div>
+  <div class="manual-row">
+    <input type="number" step="0.01" placeholder="Enter LTP manually e.g. 253.40" id="manual-price">
+    <button onclick="applyManualPrice()">Use</button>
+  </div>
+</div>
+
+<div class="gauge-card">
+  <div class="gauge-wrap"><svg id="gaugeSvg" viewBox="0 0 220 120"></svg></div>
+  <div class="gauge-label">Bias lean</div>
+  <div class="verdict neutral" id="verdictText">Tap Refresh to check</div>
+  <div class="score-line" id="scoreLine">score --</div>
+  <div class="disclaimer">A weighted lean from the signals below — not a prediction. Confirm against the actual 9:15 open before acting on it.</div>
+</div>
+
+<button class="refresh-btn" id="refreshBtn" onclick="runAll()">Refresh all sources</button>
+
+<div class="section-title">GIFT Nifty (NSE IX)</div>
+<div class="card" id="card-gift">
+  <div class="card-top"><div class="card-name">Implied Nifty gap</div><span class="badge pending" id="badge-gift">pending</span></div>
+  <div class="card-value" id="val-gift">--</div>
+  <div class="card-sub" id="sub-gift">Scraped best-effort — proxied third-party page, breaks without notice</div>
+  <div class="manual-row">
+    <input type="number" step="0.1" placeholder="Enter gap in points e.g. -34.3" id="manual-gift">
+    <button onclick="applyManualGift()">Use</button>
+  </div>
+</div>
+
+<div class="section-title">NSE Pre-Open (official)</div>
+<div class="card" id="card-preopen">
+  <div class="card-top"><div class="card-name">NIFTY 50 pre-open move</div><span class="badge pending" id="badge-preopen">pending</span></div>
+  <div class="card-value" id="val-preopen">--</div>
+  <div class="card-sub" id="sub-preopen">nseindia.com blocks most cross-origin browser calls — likely to need manual entry</div>
+  <div class="manual-row">
+    <input type="number" step="0.01" placeholder="% change e.g. -0.3" id="manual-preopen">
+    <button onclick="applyManualPreopen()">Use</button>
+  </div>
+</div>
+
+<div class="section-title">Global Cues</div>
+<div class="card" id="card-us">
+  <div class="card-top"><div class="card-name">US markets (Dow / Nasdaq)</div><span class="badge pending" id="badge-us">pending</span></div>
+  <div class="card-value" id="val-us">--</div>
+</div>
+<div class="card" id="card-asia">
+  <div class="card-top"><div class="card-name">Asia (Nikkei / Hang Seng)</div><span class="badge pending" id="badge-asia">pending</span></div>
+  <div class="card-value" id="val-asia">--</div>
+</div>
+<div class="card" id="card-fx">
+  <div class="card-top"><div class="card-name">USD/INR</div><span class="badge pending" id="badge-fx">pending</span></div>
+  <div class="card-value" id="val-fx">--</div>
+</div>
+
+<div class="section-title">Volatility</div>
+<div class="card" id="card-vix">
+  <div class="card-top"><div class="card-name">India VIX</div><span class="badge pending" id="badge-vix">pending</span></div>
+  <div class="card-value" id="val-vix">--</div>
+  <div class="manual-row">
+    <input type="number" step="0.01" placeholder="% change e.g. -2.1" id="manual-vix">
+    <button onclick="applyManualVix()">Use</button>
+  </div>
+</div>
+
+<div class="section-title">Return &amp; MTF Calculator</div>
+<div class="card calc-card">
+  <div class="calc-row">
+    <label>Amount to invest (₹)</label>
+    <input type="number" inputmode="decimal" id="calc-amount" placeholder="e.g. 100000" oninput="computeCalc()">
+  </div>
+
+  <div class="mode-toggle" id="mode-toggle">
+    <button type="button" class="mode-btn active" id="mode-btn-cash" onclick="setMode('cash')">Cash</button>
+    <button type="button" class="mode-btn" id="mode-btn-mtf" onclick="setMode('mtf')">MTF (5×)</button>
+  </div>
+
+  <div class="calc-row">
+    <label>Assumed NIFTYBEES move (%)</label>
+    <input type="number" inputmode="decimal" step="0.1" id="calc-move" placeholder="e.g. 1.5" oninput="computeCalc()">
+  </div>
+  <div class="mtf-only" id="mtf-only-fields">
+    <div class="calc-row">
+      <label>MTF interest — annual (%, on borrowed 4×)</label>
+      <input type="number" inputmode="decimal" step="0.01" id="calc-mtf-rate" value="14.99" oninput="computeCalc()">
+    </div>
+    <div class="calc-row">
+      <label>Holding period (days)</label>
+      <input type="number" inputmode="numeric" step="1" id="calc-days" value="1" oninput="computeCalc()">
+    </div>
+  </div>
+  <div class="card-sub" style="margin-bottom:8px;">Charges use Angel One's published NIFTYBEES delivery fee schedule — brokerage, STT, exchange &amp; SEBI charges, stamp duty, DP charges, IPFT and 18% GST — computed automatically below, not a flat %.</div>
+
+  <div class="calc-table" id="calc-output">
+    <div class="calc-empty">Enter an amount to see results.</div>
+  </div>
+  <div class="calc-summary" id="calc-summary"></div>
+  <div class="disclaimer" id="calc-disclaimer">MTF = Margin Trade Funding, exposure is 5&times; your capital (broker funds the remaining 4&times;). Interest accrues daily on the borrowed 4&times; only. Not investment advice.</div>
+</div>
+
+<details>
+  <summary>Tune signal weights</summary>
+  <div id="weightSliders"></div>
+</details>
+
+<script>
+// ---------------- state ----------------
+const WEIGHTS = {
+  gift: 3.0, preopen: 2.5, us: 1.5, asia: 1.0, fx: 0.5, vix: 0.5
+};
+const data = { gift:null, preopen:null, us:null, asia:null, fx:null, vix:null };
+
+// Several public CORS proxies, tried in order — any one of them going down
+// (common — they're free services) shouldn't take the whole app with it.
+const PROXIES = [
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+  url => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
+];
+
+function setBadge(id, state, msg){ // live | failed | pending
+  const el = document.getElementById('badge-'+id);
+  el.className = 'badge ' + state;
+  el.textContent = state === 'live' ? 'live' : state === 'failed' ? 'unavailable' : 'pending';
+  if(msg){
+    const sub = document.getElementById('sub-'+id);
+    if(sub) sub.textContent = msg;
+  }
+}
+
+async function fetchRaw(url, ms=9000){
+  const ctrl = new AbortController();
+  const t = setTimeout(()=>ctrl.abort(), ms);
+  try{
+    const r = await fetch(url, {signal: ctrl.signal});
+    clearTimeout(t);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r;
+  }catch(e){ clearTimeout(t); throw e; }
+}
+
+// Tries each proxy in turn against the target URL; throws the last error
+// if all of them fail. Returns the successful Response.
+async function fetchViaProxy(targetUrl, ms=9000){
+  let lastErr;
+  for(const build of PROXIES){
+    try{
+      return await fetchRaw(build(targetUrl), ms);
+    }catch(e){
+      lastErr = e;
+    }
+  }
+  throw lastErr || new Error('all proxies failed');
+}
+
+// ---------------- GIFT Nifty (scrape) ----------------
+async function fetchGift(){
+  setBadge('gift','pending');
+  try{
+    const r = await fetchViaProxy('https://www.niftytrader.in/gift-nifty-live');
+    const html = await r.text();
+    const text = html.replace(/<[^>]+>/g,' ');
+    const m = text.match(/Implied Nifty Open[\s\S]{0,120}?(-?\d[\d,]*\.?\d*)/);
+    if(!m) throw new Error('pattern not found in page');
+    const gap = parseFloat(m[1].replace(/,/g,''));
+    data.gift = gap;
+    document.getElementById('val-gift').textContent = (gap>0?'+':'')+gap.toFixed(1)+' pts';
+    document.getElementById('val-gift').className = 'card-value ' + (gap>0?'bull':gap<0?'bear':'');
+    setBadge('gift','live','Implied Nifty 50 opening gap');
+  }catch(e){
+    setBadge('gift','failed', 'Fetch failed ('+e.message+') — enter manually below');
+  }
+}
+function applyManualGift(){
+  const v = parseFloat(document.getElementById('manual-gift').value);
+  if(isNaN(v)) return;
+  data.gift = v;
+  document.getElementById('val-gift').textContent = (v>0?'+':'')+v.toFixed(1)+' pts (manual)';
+  document.getElementById('val-gift').className = 'card-value ' + (v>0?'bull':v<0?'bear':'');
+  setBadge('gift','live');
+  computeScore();
+}
+
+// ---------------- NSE pre-open (official) ----------------
+async function fetchPreopen(){
+  setBadge('preopen','pending');
+  try{
+    const r = await fetchViaProxy('https://www.nseindia.com/api/market-data-pre-open?key=NIFTY');
+    const j = await r.json();
+    const row = (j.data||[]).find(x=>x.symbol==='NIFTY 50');
+    if(!row) throw new Error('no index row in response');
+    const pc = row.pChange;
+    data.preopen = pc;
+    document.getElementById('val-preopen').textContent = (pc>0?'+':'')+pc.toFixed(2)+'%';
+    document.getElementById('val-preopen').className = 'card-value ' + (pc>0?'bull':pc<0?'bear':'');
+    setBadge('preopen','live', `Adv/Dec/Unch: ${j.advances}/${j.declines}/${j.unchanged}`);
+  }catch(e){
+    setBadge('preopen','failed', 'Blocked/failed ('+e.message+') — enter manually if you have it');
+  }
+}
+function applyManualPreopen(){
+  const v = parseFloat(document.getElementById('manual-preopen').value);
+  if(isNaN(v)) return;
+  data.preopen = v;
+  document.getElementById('val-preopen').textContent = (v>0?'+':'')+v.toFixed(2)+'% (manual)';
+  document.getElementById('val-preopen').className = 'card-value ' + (v>0?'bull':v<0?'bear':'');
+  setBadge('preopen','live');
+  computeScore();
+}
+
+// ---------------- India VIX (official) ----------------
+async function fetchVix(){
+  setBadge('vix','pending');
+  try{
+    const r = await fetchViaProxy('https://www.nseindia.com/api/allIndices');
+    const j = await r.json();
+    const row = (j.data||[]).find(x=>(x.index||'').includes('VIX'));
+    if(!row) throw new Error('no vix row in response');
+    const pc = row.percentChange;
+    data.vix = pc;
+    document.getElementById('val-vix').textContent = row.last + ' (' + (pc>0?'+':'') + pc.toFixed(2) + '%)';
+    document.getElementById('val-vix').className = 'card-value ' + (pc<0?'bull':pc>0?'bear':'');
+    setBadge('vix','live');
+  }catch(e){
+    setBadge('vix','failed', e.message);
+  }
+}
+function applyManualVix(){
+  const v = parseFloat(document.getElementById('manual-vix').value);
+  if(isNaN(v)) return;
+  data.vix = v;
+  document.getElementById('val-vix').textContent = (v>0?'+':'')+v.toFixed(2)+'% (manual)';
+  document.getElementById('val-vix').className = 'card-value ' + (v<0?'bull':v>0?'bear':'');
+  setBadge('vix','live');
+  computeScore();
+}
+
+// ---------------- Global cues via Yahoo Finance ----------------
+async function fetchYahooChart(symbol){
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
+  const r = await fetchViaProxy(url);
+  const j = await r.json();
+  const result = j.chart.result[0];
+  const closes = result.indicators.quote[0].close.filter(x=>x!=null);
+  const last = closes[closes.length-1], prev = closes[closes.length-2];
+  return { last, prev, pct: (last-prev)/prev*100, meta: result.meta };
+}
+async function fetchYahooPct(symbol){
+  return (await fetchYahooChart(symbol)).pct;
+}
+
+function setPriceDisplay(price, prevClose, sourceLabel){
+  const pct = (price - prevClose) / prevClose * 100;
+  document.getElementById('price-value').textContent = '₹' + price.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const pctEl = document.getElementById('price-pct');
+  pctEl.textContent = (pct>0?'+':'')+pct.toFixed(2)+'%';
+  pctEl.className = 'price-pct ' + (pct>0?'bull':pct<0?'bear':'');
+  document.getElementById('sub-price').textContent = (prevClose ? 'Prev close ₹'+prevClose.toLocaleString('en-IN',{minimumFractionDigits:2}) : '') + (sourceLabel ? '  ·  '+sourceLabel : '');
+  return pct;
+}
+
+async function fetchNiftybeesPrice(){
+  setBadge('price','pending');
+
+  // Attempt 1: Yahoo Finance chart endpoint (via proxy)
+  try{
+    const c = await fetchYahooChart('NIFTYBEES.NS');
+    const price = c.meta.regularMarketPrice ?? c.last;
+    const prevClose = c.meta.previousClose ?? c.prev;
+    if(!price || !prevClose) throw new Error('empty price from Yahoo');
+    setPriceDisplay(price, prevClose, 'Yahoo Finance');
+    setBadge('price','live');
+    return;
+  }catch(e1){
+    // Attempt 2: NSE quote-equity endpoint (via proxy) as fallback
+    try{
+      const r = await fetchViaProxy('https://www.nseindia.com/api/quote-equity?symbol=NIFTYBEES');
+      const j = await r.json();
+      const price = j.priceInfo && j.priceInfo.lastPrice;
+      const prevClose = j.priceInfo && j.priceInfo.previousClose;
+      if(!price || !prevClose) throw new Error('empty price from NSE');
+      setPriceDisplay(price, prevClose, 'NSE');
+      setBadge('price','live');
+      return;
+    }catch(e2){
+      setBadge('price','failed');
+      document.getElementById('sub-price').textContent =
+        'Both sources failed (Yahoo: '+e1.message+' · NSE: '+e2.message+') — enter LTP manually below';
+    }
+  }
+}
+
+function applyManualPrice(){
+  const v = parseFloat(document.getElementById('manual-price').value);
+  if(isNaN(v) || v<=0) return;
+  document.getElementById('price-value').textContent = '₹' + v.toLocaleString('en-IN',{minimumFractionDigits:2});
+  document.getElementById('price-pct').textContent = '';
+  document.getElementById('price-pct').className = 'price-pct';
+  document.getElementById('sub-price').textContent = 'Manually entered';
+  setBadge('price','live');
+}
+
+async function fetchUS(){
+  setBadge('us','pending');
+  try{
+    const [dow, nasdaq] = await Promise.all([fetchYahooPct('%5EDJI'), fetchYahooPct('%5EIXIC')]);
+    const avg = (dow+nasdaq)/2;
+    data.us = avg;
+    document.getElementById('val-us').textContent = `Dow ${dow>0?'+':''}${dow.toFixed(2)}%  ·  Nasdaq ${nasdaq>0?'+':''}${nasdaq.toFixed(2)}%`;
+    document.getElementById('val-us').className = 'card-value ' + (avg>0?'bull':avg<0?'bear':'');
+    setBadge('us','live');
+  }catch(e){ setBadge('us','failed'); document.getElementById('val-us').textContent = 'Failed: '+e.message; }
+}
+async function fetchAsia(){
+  setBadge('asia','pending');
+  try{
+    const [nikkei, hsi] = await Promise.all([fetchYahooPct('%5EN225'), fetchYahooPct('%5EHSI')]);
+    const avg = (nikkei+hsi)/2;
+    data.asia = avg;
+    document.getElementById('val-asia').textContent = `Nikkei ${nikkei>0?'+':''}${nikkei.toFixed(2)}%  ·  HSI ${hsi>0?'+':''}${hsi.toFixed(2)}%`;
+    document.getElementById('val-asia').className = 'card-value ' + (avg>0?'bull':avg<0?'bear':'');
+    setBadge('asia','live');
+  }catch(e){ setBadge('asia','failed'); document.getElementById('val-asia').textContent = 'Failed: '+e.message; }
+}
+async function fetchFx(){
+  setBadge('fx','pending');
+  try{
+    const pc = await fetchYahooPct('INR=X');
+    data.fx = pc;
+    document.getElementById('val-fx').textContent = (pc>0?'+':'')+pc.toFixed(2)+'% (rupee '+(pc>0?'weaker':'stronger')+')';
+    document.getElementById('val-fx').className = 'card-value ' + (pc<0?'bull':pc>0?'bear':'');
+    setBadge('fx','live');
+  }catch(e){ setBadge('fx','failed'); document.getElementById('val-fx').textContent = 'Failed: '+e.message; }
+}
+
+// ---------------- scoring ----------------
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+
+function computeScore(){
+  let score=0, used=0;
+  if(data.gift!==null){ const c = WEIGHTS.gift * clamp(data.gift/15,-1,1); score+=c; used+=WEIGHTS.gift; }
+  if(data.preopen!==null){ const c = WEIGHTS.preopen * clamp(data.preopen/0.5,-1,1); score+=c; used+=WEIGHTS.preopen; }
+  if(data.us!==null){ const c = WEIGHTS.us * clamp(data.us/1.0,-1,1); score+=c; used+=WEIGHTS.us; }
+  if(data.asia!==null){ const c = WEIGHTS.asia * clamp(data.asia/1.0,-1,1); score+=c; used+=WEIGHTS.asia; }
+  if(data.fx!==null){ const c = WEIGHTS.fx * clamp(-data.fx/0.3,-1,1); score+=c; used+=WEIGHTS.fx; }
+  if(data.vix!==null){ const c = WEIGHTS.vix * clamp(-data.vix/5,-1,1); score+=c; used+=WEIGHTS.vix; }
+
+  const norm = used ? score/used : 0;
+  drawGauge(norm);
+
+  const verdictEl = document.getElementById('verdictText');
+  const scoreEl = document.getElementById('scoreLine');
+  scoreEl.textContent = `score ${norm>=0?'+':''}${norm.toFixed(2)}  ·  ${used.toFixed(1)}/${(WEIGHTS.gift+WEIGHTS.preopen+WEIGHTS.us+WEIGHTS.asia+WEIGHTS.fx+WEIGHTS.vix).toFixed(1)} weight available`;
+
+  if(used===0){
+    verdictEl.textContent = 'No data yet';
+    verdictEl.className = 'verdict neutral';
+  } else if(norm > 0.35){
+    verdictEl.textContent = 'Bullish lean';
+    verdictEl.className = 'verdict bull';
+  } else if(norm < -0.35){
+    verdictEl.textContent = 'Bearish lean';
+    verdictEl.className = 'verdict bear';
+  } else {
+    verdictEl.textContent = 'Neutral / flat lean';
+    verdictEl.className = 'verdict neutral';
+  }
+}
+
+function drawGauge(norm){
+  const svg = document.getElementById('gaugeSvg');
+  const cx=110, cy=110, r=95;
+  const angle = -180 + (clamp(norm,-1,1)+1)/2*180; // -180..0 deg
+  const rad = angle * Math.PI/180;
+  const nx = cx + r*0.82*Math.cos(rad);
+  const ny = cy + r*0.82*Math.sin(rad);
+
+  const arcColor = 'url(#gaugeGrad)';
+  svg.innerHTML = `
+    <defs>
+      <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+        <stop offset="0%" stop-color="${getComputedStyle(document.documentElement).getPropertyValue('--bear')}"/>
+        <stop offset="50%" stop-color="${getComputedStyle(document.documentElement).getPropertyValue('--gold')}"/>
+        <stop offset="100%" stop-color="${getComputedStyle(document.documentElement).getPropertyValue('--bull')}"/>
+      </linearGradient>
+    </defs>
+    <path d="M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}" fill="none" stroke="${arcColor}" stroke-width="10" stroke-linecap="round"/>
+    <line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#E8ECF4" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="6" fill="#E8ECF4"/>
+  `;
+}
+
+// ---------------- calculator ----------------
+function fmtINR(n){
+  const sign = n<0 ? '-' : '';
+  return sign + '₹' + Math.abs(n).toLocaleString('en-IN',{maximumFractionDigits:0});
+}
+
+// Angel One's published NIFTYBEES (equity delivery ETF) charge schedule.
+// Brokerage: 0.1% or ₹20 per order, whichever is lower, min ₹5.
+// STT: 0.1% both legs. Exchange txn: ~0.00307%. SEBI + IPFT: ₹10/crore each.
+// Stamp duty: 0.015% on buy only. DP charge: flat ₹23.60 (incl. GST) on sell only.
+// GST 18% on (brokerage + exchange txn charges + SEBI fee + IPFT).
+function angelOneCharges(buyValue, sellValue){
+  function leg(value, isBuy){
+    const brokerage = Math.min(0.001*value, 20) < 5 ? 5 : Math.min(0.001*value, 20);
+    const stt = 0.001*value;
+    const exchange = 0.0000307*value;
+    const sebi = (10/1e7)*value;
+    const ipft = (10/1e7)*value;
+    const stamp = isBuy ? 0.00015*value : 0;
+    const dp = isBuy ? 0 : 23.60;
+    const gst = 0.18*(brokerage+exchange+sebi+ipft);
+    return brokerage+stt+exchange+sebi+ipft+stamp+dp+gst;
+  }
+  return leg(buyValue, true) + leg(sellValue, false);
+}
+
+let calcMode = 'cash';
+function setMode(mode){
+  calcMode = mode;
+  document.getElementById('mode-btn-cash').classList.toggle('active', mode==='cash');
+  document.getElementById('mode-btn-mtf').classList.toggle('active', mode==='mtf');
+  document.getElementById('mtf-only-fields').classList.toggle('show', mode==='mtf');
+  document.getElementById('calc-disclaimer').textContent = mode==='mtf'
+    ? 'MTF = Margin Trade Funding, exposure is 5\u00d7 your capital (broker funds the remaining 4\u00d7). Interest accrues daily on the borrowed 4\u00d7. Not investment advice.'
+    : 'Cash (delivery) investing — no leverage, no interest, exposure equals what you put in. Not investment advice.';
+  computeCalc();
+}
+
+function computeCalc(){
+  const out = document.getElementById('calc-output');
+  const summary = document.getElementById('calc-summary');
+  const amount = parseFloat(document.getElementById('calc-amount').value);
+  const movePct = parseFloat(document.getElementById('calc-move').value);
+  const mtfRate = parseFloat(document.getElementById('calc-mtf-rate').value) || 0;
+  const days = parseFloat(document.getElementById('calc-days').value) || 0;
+
+  if(!amount || amount<=0 || isNaN(movePct)){
+    out.innerHTML = '<div class="calc-empty">Enter an amount and an assumed % move to see results.</div>';
+    summary.innerHTML = '';
+    return;
+  }
+
+  function scenario(exposure, capital, direction, interest){
+    const sellValue = exposure * (1 + direction*movePct/100);
+    const fees = angelOneCharges(exposure, sellValue);
+    const gross = sellValue - exposure;
+    const net = gross - fees - interest;
+    const netReturnOnCapital = (net / capital) * 100;
+    return { fees, interest, gross, net, netReturnOnCapital };
+  }
+
+  let s, title, showInterest;
+  if(calcMode === 'mtf'){
+    const borrowed = amount*4;
+    const mtfInterest = borrowed * (mtfRate/100) * (days/365);
+    s = {
+      exposure: amount*5, capital: amount, interest: mtfInterest,
+      up: scenario(amount*5, amount, 1, mtfInterest),
+      down: scenario(amount*5, amount, -1, mtfInterest),
+    };
+    title = 'MTF (5× leverage)';
+    showInterest = true;
+  } else {
+    s = {
+      exposure: amount, capital: amount, interest: 0,
+      up: scenario(amount, amount, 1, 0),
+      down: scenario(amount, amount, -1, 0),
+    };
+    title = 'Cash (delivery)';
+    showInterest = false;
+  }
+
+  out.innerHTML = `
+    <div class="calc-scenario">
+      <div class="calc-scenario-title">${title} — exposure ${fmtINR(s.exposure)}, your capital ${fmtINR(s.capital)}</div>
+      <div class="calc-grid">
+        <div class="calc-col-head">If NIFTYBEES rises ${Math.abs(movePct)}%</div>
+        <div class="calc-col-head">If NIFTYBEES falls ${Math.abs(movePct)}%</div>
+        <div class="calc-line"><span class="lbl">Gross P&amp;L</span><span class="val ${s.up.gross>=0?'bull':'bear'}">${fmtINR(s.up.gross)}</span></div>
+        <div class="calc-line"><span class="lbl">Gross P&amp;L</span><span class="val ${s.down.gross>=0?'bull':'bear'}">${fmtINR(s.down.gross)}</span></div>
+        <div class="calc-line"><span class="lbl">Charges (brokerage+STT+GST etc.)</span><span class="val">-${fmtINR(s.up.fees)}</span></div>
+        <div class="calc-line"><span class="lbl">Charges (brokerage+STT+GST etc.)</span><span class="val">-${fmtINR(s.down.fees)}</span></div>
+        ${showInterest ? `
+        <div class="calc-line"><span class="lbl">MTF interest (${days}d @ ${mtfRate}%)</span><span class="val">-${fmtINR(s.up.interest)}</span></div>
+        <div class="calc-line"><span class="lbl">MTF interest (${days}d @ ${mtfRate}%)</span><span class="val">-${fmtINR(s.down.interest)}</span></div>` : ''}
+        <div class="calc-line"><span class="lbl">Net P&amp;L</span><span class="val ${s.up.net>=0?'bull':'bear'}">${fmtINR(s.up.net)}</span></div>
+        <div class="calc-line"><span class="lbl">Net P&amp;L</span><span class="val ${s.down.net>=0?'bull':'bear'}">${fmtINR(s.down.net)}</span></div>
+        <div class="calc-line"><span class="lbl">Return on your capital</span><span class="val ${s.up.netReturnOnCapital>=0?'bull':'bear'}">${s.up.netReturnOnCapital>=0?'+':''}${s.up.netReturnOnCapital.toFixed(2)}%</span></div>
+        <div class="calc-line"><span class="lbl">Return on your capital</span><span class="val ${s.down.netReturnOnCapital>=0?'bull':'bear'}">${s.down.netReturnOnCapital>=0?'+':''}${s.down.netReturnOnCapital.toFixed(2)}%</span></div>
+      </div>
+    </div>`;
+
+  function summaryItem(label, net){
+    const cls = net>=0 ? 'bull' : 'bear';
+    return `<div class="summary-item">
+      <div class="s-label">${label}</div>
+      <div class="s-amount ${cls}">${net>=0?'+':''}${fmtINR(net)}</div>
+    </div>`;
+  }
+
+  summary.innerHTML = `
+    <div class="calc-summary-title">Net result on your ${fmtINR(amount)}</div>
+    <div class="summary-grid">
+      ${summaryItem(title+' · Up '+Math.abs(movePct)+'%', s.up.net)}
+      ${summaryItem(title+' · Down '+Math.abs(movePct)+'%', s.down.net)}
+    </div>`;
+}
+
+// ---------------- weight sliders ----------------
+function buildSliders(){
+  const wrap = document.getElementById('weightSliders');
+  const labels = {gift:'GIFT Nifty gap', preopen:'NSE pre-open', us:'US markets', asia:'Asia markets', fx:'USD/INR', vix:'India VIX'};
+  wrap.innerHTML = Object.keys(WEIGHTS).map(k=>`
+    <div class="weight-row">
+      <span>${labels[k]}</span>
+      <span>
+        <input type="range" min="0" max="4" step="0.1" value="${WEIGHTS[k]}" oninput="WEIGHTS['${k}']=parseFloat(this.value); this.nextElementSibling.textContent=this.value; computeScore();">
+        <span style="font-family:Georgia,'Times New Roman',serif;font-size:11px;color:var(--muted);margin-left:6px;">${WEIGHTS[k]}</span>
+      </span>
+    </div>`).join('');
+}
+
+// ---------------- run all ----------------
+async function runAll(){
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.textContent = 'Fetching…';
+  await Promise.allSettled([fetchNiftybeesPrice(), fetchGift(), fetchPreopen(), fetchVix(), fetchUS(), fetchAsia(), fetchFx()]);
+  computeScore();
+  document.getElementById('lastRun').textContent = 'Last run: ' + new Date().toLocaleString('en-IN', {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
+  btn.disabled = false; btn.textContent = 'Refresh all sources';
+}
+
+buildSliders();
+drawGauge(0);
+runAll();
+</script>
+</body>
+</html>
