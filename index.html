@@ -78,6 +78,27 @@ body{
 .price-pct.bull{color:var(--bull);}
 .price-pct.bear{color:var(--bear);}
 
+.last-close-row{
+  display:flex;
+  align-items:baseline;
+  gap:8px;
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px solid var(--line);
+}
+.lc-label{font-size:11.5px;color:var(--muted);flex:1;}
+.lc-value{
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:600;
+  font-size:15px;
+}
+.lc-pct{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:13px;
+}
+.lc-pct.bull{color:var(--bull);}
+.lc-pct.bear{color:var(--bear);}
+
 /* ---- Gauge card ---- */
 .gauge-card{
   background:linear-gradient(180deg,var(--surface),var(--surface-2));
@@ -223,6 +244,87 @@ body{
 }
 .mtf-only{display:none;}
 .mtf-only.show{display:block;}
+
+.submode-toggle{
+  display:flex;
+  gap:6px;
+  margin-bottom:14px;
+}
+.submode-btn{
+  flex:1;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:7px;
+  color:var(--muted);
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:600;
+  font-size:11.5px;
+  padding:7px 2px;
+  cursor:pointer;
+}
+.submode-btn.active{
+  background:transparent;
+  border-color:var(--gold);
+  color:var(--gold);
+}
+.short-note{
+  font-size:11.5px;
+  color:var(--bear);
+  background:rgba(226,96,79,0.1);
+  border:1px solid rgba(226,96,79,0.3);
+  border-radius:8px;
+  padding:8px 10px;
+  margin-bottom:14px;
+  line-height:1.5;
+}
+.fine-print{
+  font-size:9.5px;
+  line-height:1.5;
+  color:var(--muted);
+  opacity:0.75;
+  margin-top:6px;
+}
+.breakup-title{
+  font-size:11px;
+  font-weight:600;
+  color:var(--gold);
+  margin-bottom:6px;
+}
+.breakup-list{
+  list-style:none;
+  margin:0 0 8px 0;
+  padding:0;
+}
+.breakup-list li{
+  font-size:11px;
+  color:var(--text);
+  opacity:0.9;
+  line-height:1.6;
+  padding:2px 0;
+  border-bottom:1px dashed rgba(255,255,255,0.06);
+}
+.breakup-list li .bk{
+  color:var(--muted);
+  font-weight:600;
+}
+.breakup-note{
+  font-size:9.5px;
+  line-height:1.5;
+  color:var(--muted);
+  opacity:0.75;
+  margin-top:4px;
+}
+.breakeven-warning{
+  background:rgba(226,96,79,0.12);
+  border:1px solid rgba(226,96,79,0.35);
+  border-radius:10px;
+  padding:10px 12px;
+  margin-bottom:12px;
+  font-size:12px;
+  line-height:1.5;
+  color:var(--text);
+}
+.breakeven-warning strong{color:var(--bear);}
 .calc-row{
   display:flex;
   align-items:center;
@@ -241,6 +343,24 @@ body{
   font-size:14px;
   padding:8px 10px;
   text-align:right;
+}
+.calc-row select{
+  width:170px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:8px;
+  color:var(--text);
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:13px;
+  padding:8px 8px;
+  text-align:right;
+  text-align-last:right;
+}
+.calc-readout{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:14px;
+  color:var(--gold);
+  font-weight:600;
 }
 .calc-table{margin-top:14px;border-top:1px solid var(--line);padding-top:12px;}
 .calc-empty{font-size:12px;color:var(--muted);}
@@ -350,6 +470,11 @@ summary{
     </div>
   </div>
   <div class="card-sub" id="sub-price">Prev close --</div>
+  <div class="last-close-row" id="last-close-row" style="display:none;">
+    <span class="lc-label">Last weekday close</span>
+    <span class="lc-value" id="lc-value">--</span>
+    <span class="lc-pct" id="lc-pct"></span>
+  </div>
   <div class="manual-row">
     <input type="number" step="0.01" placeholder="Enter LTP manually e.g. 253.40" id="manual-price">
     <button onclick="applyManualPrice()">Use</button>
@@ -418,11 +543,26 @@ summary{
     <label>Amount to invest (₹)</label>
     <input type="number" inputmode="decimal" id="calc-amount" placeholder="e.g. 100000" oninput="computeCalc()">
   </div>
+  <div class="calc-row">
+    <label>Broker</label>
+    <select id="calc-broker" onchange="computeCalc()">
+      <option value="angelone" selected>Angel One</option>
+      <option value="kotakneo_pro">Kotak Neo (Trade Free Pro)</option>
+      <option value="kotakneo_std">Kotak Neo (Trade Free Plan)</option>
+    </select>
+  </div>
 
   <div class="mode-toggle" id="mode-toggle">
-    <button type="button" class="mode-btn active" id="mode-btn-cash" onclick="setMode('cash')">Cash</button>
-    <button type="button" class="mode-btn" id="mode-btn-mtf" onclick="setMode('mtf')">MTF (5×)</button>
+    <button type="button" class="mode-btn active" id="mode-btn-long" onclick="setMode('long')">Long</button>
+    <button type="button" class="mode-btn" id="mode-btn-short" onclick="setMode('short')">Short</button>
   </div>
+
+  <div class="submode-toggle" id="submode-toggle">
+    <button type="button" class="submode-btn active" id="sub-btn-delivery" onclick="setSubMode('delivery')">Delivery</button>
+    <button type="button" class="submode-btn" id="sub-btn-intraday" onclick="setSubMode('intraday')">Intraday</button>
+    <button type="button" class="submode-btn" id="sub-btn-mtf" onclick="setSubMode('mtf')">MTF (5×)</button>
+  </div>
+  <div class="short-note" id="short-note" style="display:none;">Short selling on Angel One is intraday-only — no delivery or MTF short is available, so this must be squared off the same day.</div>
 
   <div class="calc-row">
     <label>Assumed NIFTYBEES move (%)</label>
@@ -431,14 +571,14 @@ summary{
   <div class="mtf-only" id="mtf-only-fields">
     <div class="calc-row">
       <label>MTF interest — annual (%, on borrowed 4×)</label>
-      <input type="number" inputmode="decimal" step="0.01" id="calc-mtf-rate" value="14.99" oninput="computeCalc()">
+      <span class="calc-readout" id="mtf-rate-readout">14.99%</span>
     </div>
     <div class="calc-row">
       <label>Holding period (days)</label>
       <input type="number" inputmode="numeric" step="1" id="calc-days" value="1" oninput="computeCalc()">
     </div>
   </div>
-  <div class="card-sub" style="margin-bottom:8px;">Charges use Angel One's published NIFTYBEES delivery fee schedule — brokerage, STT, exchange &amp; SEBI charges, stamp duty, DP charges, IPFT and 18% GST — computed automatically below, not a flat %.</div>
+  <div class="card-sub" id="charge-schedule-note" style="margin-bottom:8px;">Charges use Angel One's published NIFTYBEES delivery fee schedule — brokerage, STT, exchange &amp; SEBI charges, stamp duty, DP charges, IPFT and 18% GST — computed automatically below, not a flat %.</div>
 
   <div class="calc-table" id="calc-output">
     <div class="calc-empty">Enter an amount to see results.</div>
@@ -605,6 +745,14 @@ function setPriceDisplay(price, prevClose, sourceLabel){
   pctEl.textContent = (pct>0?'+':'')+pct.toFixed(2)+'%';
   pctEl.className = 'price-pct ' + (pct>0?'bull':pct<0?'bear':'');
   document.getElementById('sub-price').textContent = (prevClose ? 'Prev close ₹'+prevClose.toLocaleString('en-IN',{minimumFractionDigits:2}) : '') + (sourceLabel ? '  ·  '+sourceLabel : '');
+
+  if(prevClose){
+    document.getElementById('last-close-row').style.display = 'flex';
+    document.getElementById('lc-value').textContent = '₹' + prevClose.toLocaleString('en-IN',{minimumFractionDigits:2});
+    const lcPctEl = document.getElementById('lc-pct');
+    lcPctEl.textContent = (pct>0?'+':'')+pct.toFixed(2)+'% since';
+    lcPctEl.className = 'lc-pct ' + (pct>0?'bull':pct<0?'bear':'');
+  }
   return pct;
 }
 
@@ -745,14 +893,51 @@ function fmtINR(n){
   return sign + '₹' + Math.abs(n).toLocaleString('en-IN',{maximumFractionDigits:0});
 }
 
-// Angel One's published NIFTYBEES (equity delivery ETF) charge schedule.
-// Brokerage: 0.1% or ₹20 per order, whichever is lower, min ₹5.
-// STT: 0.1% both legs. Exchange txn: ~0.00307%. SEBI + IPFT: ₹10/crore each.
+// Statutory/government-mandated charges are IDENTICAL across every Indian broker —
+// STT, stamp duty, exchange transaction charges, SEBI turnover fee, IPFT, and GST
+// rates are all set by the government/exchange, not the broker. Only brokerage
+// itself and the MTF interest rate are broker-specific.
+const BROKERS = {
+  angelone: {
+    label: 'Angel One',
+    mtfRate: 14.99,
+    deliveryBrokerage: (v) => Math.max(Math.min(0.001*v, 20), 5),
+    intradayBrokerage: (v) => Math.max(Math.min(0.001*v, 20), 5),
+    deliveryBrokerageDesc: '0.1% per order or ₹20, whichever is lower (min ₹5)',
+    intradayBrokerageDesc: '0.1% per order or ₹20, whichever is lower (min ₹5)',
+    planNote: null,
+  },
+  kotakneo_pro: {
+    label: 'Kotak Neo (Trade Free Pro)',
+    mtfRate: 9.69,
+    // Trade Free Pro: 0.10% flat on delivery, ₹10-or-0.05%-whichever-lower on intraday.
+    deliveryBrokerage: (v) => 0.001*v,
+    intradayBrokerage: (v) => Math.min(10, 0.0005*v),
+    deliveryBrokerageDesc: '0.10% per order, flat (no cap)',
+    intradayBrokerageDesc: '0.05% per order or ₹10, whichever is lower',
+    planNote: 'Trade Free Pro carries a ₹249 + GST monthly subscription fee, separate from per-trade charges — factor that in if you trade infrequently.',
+  },
+  kotakneo_std: {
+    label: 'Kotak Neo (Trade Free Plan)',
+    mtfRate: 14.99,
+    // Standard Trade Free Plan: 0.20% flat on delivery, same ₹10-or-0.05% on intraday.
+    deliveryBrokerage: (v) => 0.002*v,
+    intradayBrokerage: (v) => Math.min(10, 0.0005*v),
+    deliveryBrokerageDesc: '0.20% per order, flat (no cap)',
+    intradayBrokerageDesc: '0.05% per order or ₹10, whichever is lower',
+    planNote: 'No subscription fee on this plan, but delivery brokerage is double Trade Free Pro\u2019s rate and MTF interest is the higher standard rate.',
+  },
+};
+
+// DELIVERY charge schedule (Long·Delivery, Long·MTF — MTF is still a delivery-style
+// holding, just broker-financed, so delivery statutory rates apply either way).
+// STT: 0.1% BOTH legs. Exchange txn: ~0.00307%. SEBI + IPFT: ₹10/crore each.
 // Stamp duty: 0.015% on buy only. DP charge: flat ₹23.60 (incl. GST) on sell only.
 // GST 18% on (brokerage + exchange txn charges + SEBI fee + IPFT).
-function angelOneCharges(buyValue, sellValue){
+function deliveryCharges(buyValue, sellValue, brokerKey){
+  const brokerageFn = BROKERS[brokerKey].deliveryBrokerage;
   function leg(value, isBuy){
-    const brokerage = Math.min(0.001*value, 20) < 5 ? 5 : Math.min(0.001*value, 20);
+    const brokerage = brokerageFn(value);
     const stt = 0.001*value;
     const exchange = 0.0000307*value;
     const sebi = (10/1e7)*value;
@@ -765,16 +950,106 @@ function angelOneCharges(buyValue, sellValue){
   return leg(buyValue, true) + leg(sellValue, false);
 }
 
-let calcMode = 'cash';
+// INTRADAY charge schedule (Long·Intraday, Short·Intraday).
+// STT: 0.025% on the SELL leg only. Stamp duty: 0.003% on the BUY leg only.
+// No DP charge — intraday positions never settle into the demat account.
+// Exchange, SEBI, IPFT, GST rates: same statutory rates as delivery.
+function intradayChargesFor(buyValue, sellValue, brokerKey){
+  const brokerageFn = BROKERS[brokerKey].intradayBrokerage;
+  function leg(value, isBuy){
+    const brokerage = brokerageFn(value);
+    const exchange = 0.0000307*value;
+    const sebi = (10/1e7)*value;
+    const ipft = (10/1e7)*value;
+    const stt = isBuy ? 0 : 0.00025*value;
+    const stamp = isBuy ? 0.00003*value : 0;
+    const gst = 0.18*(brokerage+exchange+sebi+ipft);
+    return brokerage+stt+exchange+sebi+ipft+stamp+gst;
+  }
+  return leg(buyValue, true) + leg(sellValue, false);
+}
+
+let calcMode = 'long';      // 'long' | 'short'
+let subMode = 'delivery';   // 'delivery' | 'intraday' | 'mtf' — only meaningful when calcMode==='long'
+
+function currentBroker(){
+  return document.getElementById('calc-broker').value;
+}
+
 function setMode(mode){
   calcMode = mode;
-  document.getElementById('mode-btn-cash').classList.toggle('active', mode==='cash');
-  document.getElementById('mode-btn-mtf').classList.toggle('active', mode==='mtf');
-  document.getElementById('mtf-only-fields').classList.toggle('show', mode==='mtf');
-  document.getElementById('calc-disclaimer').textContent = mode==='mtf'
-    ? 'MTF = Margin Trade Funding, exposure is 5\u00d7 your capital (broker funds the remaining 4\u00d7). Interest accrues daily on the borrowed 4\u00d7. Not investment advice.'
-    : 'Cash (delivery) investing — no leverage, no interest, exposure equals what you put in. Not investment advice.';
+  document.getElementById('mode-btn-long').classList.toggle('active', mode==='long');
+  document.getElementById('mode-btn-short').classList.toggle('active', mode==='short');
+  document.getElementById('submode-toggle').style.display = mode==='long' ? 'flex' : 'none';
+  document.getElementById('short-note').style.display = mode==='short' ? 'block' : 'none';
+  if(mode==='short'){
+    document.getElementById('mtf-only-fields').classList.remove('show');
+  } else {
+    document.getElementById('mtf-only-fields').classList.toggle('show', subMode==='mtf');
+  }
+  updateDisclaimer();
   computeCalc();
+}
+
+function setSubMode(sub){
+  subMode = sub;
+  ['delivery','intraday','mtf'].forEach(s => {
+    document.getElementById('sub-btn-'+s).classList.toggle('active', s===sub);
+  });
+  document.getElementById('mtf-only-fields').classList.toggle('show', sub==='mtf');
+  updateDisclaimer();
+  computeCalc();
+}
+
+function buildBreakupHTML(brokerKey, isIntraday, mtfRate){
+  const b = BROKERS[brokerKey];
+  const brokerageDesc = isIntraday ? b.intradayBrokerageDesc : b.deliveryBrokerageDesc;
+  const rows = [
+    ['Brokerage', brokerageDesc],
+    ['STT', isIntraday ? '0.025% on the sell leg only' : '0.1% on both buy and sell legs'],
+    ['Exchange transaction charge', '~0.00307% (NSE), both legs'],
+    ['SEBI turnover fee', '₹10 per crore of traded value, both legs'],
+    ['IPFT (NSE)', '₹10 per crore of traded value, both legs'],
+    ['Stamp duty', isIntraday ? '0.003% on the buy leg only' : '0.015% on the buy leg only'],
+  ];
+  if(!isIntraday){
+    rows.push(['DP charge', '₹23.60 flat (incl. GST), sell leg only']);
+  }
+  rows.push(['GST', '18% on (brokerage + exchange charge + SEBI fee + IPFT)']);
+  if(mtfRate !== undefined){
+    rows.push(['MTF interest', mtfRate + '% p.a. on the borrowed 4\u00d7 portion, accrued daily']);
+  }
+  let html = `<div class="breakup-title">${b.label} — full charge breakup</div><ul class="breakup-list">`;
+  rows.forEach(([k,v]) => { html += `<li><span class="bk">${k}:</span> ${v}</li>`; });
+  html += '</ul>';
+  if(b.planNote){
+    html += `<div class="breakup-note">${b.planNote}</div>`;
+  }
+  html += '<div class="breakup-note">STT, stamp duty, exchange charge, SEBI fee, IPFT and GST are government/exchange-mandated rates, identical across every Indian broker. Only brokerage and MTF interest are broker/plan-specific.</div>';
+  return html;
+}
+
+function updateDisclaimer(){
+  const el = document.getElementById('calc-disclaimer');
+  const noteEl = document.getElementById('charge-schedule-note');
+  const brokerKey = currentBroker();
+  const brokerLabel = BROKERS[brokerKey].label;
+  const mtfRate = BROKERS[brokerKey].mtfRate;
+
+  if(calcMode==='short'){
+    el.textContent = `Short selling is intraday-only on ${brokerLabel} — position must be squared off the same trading day. No MTF/leverage applies.`;
+    noteEl.innerHTML = buildBreakupHTML(brokerKey, true);
+  } else if(subMode==='delivery'){
+    el.textContent = 'Delivery (cash) — no leverage, no interest, exposure equals what you put in. Not investment advice.';
+    noteEl.innerHTML = buildBreakupHTML(brokerKey, false);
+  } else if(subMode==='intraday'){
+    el.textContent = 'Intraday (long) — must be squared off the same trading day. No overnight interest since there is no overnight position.';
+    noteEl.innerHTML = buildBreakupHTML(brokerKey, true);
+  } else {
+    el.textContent = `MTF = Margin Trade Funding, exposure is 5\u00d7 your capital (broker funds the remaining 4\u00d7). Interest accrues daily on the borrowed 4\u00d7 at ${brokerLabel}'s rate. Not investment advice.`;
+    noteEl.innerHTML = buildBreakupHTML(brokerKey, false, mtfRate);
+  }
+  document.getElementById('mtf-rate-readout').textContent = mtfRate + '%';
 }
 
 function computeCalc(){
@@ -782,7 +1057,8 @@ function computeCalc(){
   const summary = document.getElementById('calc-summary');
   const amount = parseFloat(document.getElementById('calc-amount').value);
   const movePct = parseFloat(document.getElementById('calc-move').value);
-  const mtfRate = parseFloat(document.getElementById('calc-mtf-rate').value) || 0;
+  const brokerKey = currentBroker();
+  const mtfRate = BROKERS[brokerKey].mtfRate;
   const days = parseFloat(document.getElementById('calc-days').value) || 0;
 
   if(!amount || amount<=0 || isNaN(movePct)){
@@ -791,46 +1067,103 @@ function computeCalc(){
     return;
   }
 
-  function scenario(exposure, capital, direction, interest){
-    const sellValue = exposure * (1 + direction*movePct/100);
-    const fees = angelOneCharges(exposure, sellValue);
-    const gross = sellValue - exposure;
+  // Long: buy first at exposure, sell later at exposure*(1+directionSign*move%).
+  // gross = sellValue - buyValue -> profit when price rises, loss when it falls.
+  function scenarioLong(exposure, capital, directionSign, interest, chargeFn){
+    const buyValue = exposure;
+    const sellValue = exposure * (1 + directionSign*movePct/100);
+    const fees = chargeFn(buyValue, sellValue, brokerKey);
+    const gross = sellValue - buyValue;
     const net = gross - fees - interest;
-    const netReturnOnCapital = (net / capital) * 100;
-    return { fees, interest, gross, net, netReturnOnCapital };
+    return { fees, interest, gross, net, netReturnOnCapital: (net/capital)*100 };
+  }
+
+  // Short: sell first at exposure (short-sale proceeds), buy back later at
+  // exposure*(1+directionSign*move%). gross = sellValue - buyValue -> profit
+  // when price FALLS (cheaper buy-back), loss when it rises.
+  function scenarioShort(exposure, capital, directionSign, chargeFn){
+    const sellValue = exposure;
+    const buyValue = exposure * (1 + directionSign*movePct/100);
+    const fees = chargeFn(buyValue, sellValue, brokerKey);
+    const gross = sellValue - buyValue;
+    const net = gross - fees;
+    return { fees, interest: 0, gross, net, netReturnOnCapital: (net/capital)*100 };
   }
 
   let s, title, showInterest;
-  if(calcMode === 'mtf'){
+  if(calcMode === 'short'){
+    const exposure = amount;
+    s = {
+      exposure, capital: amount, interest: 0,
+      up: scenarioShort(exposure, amount, 1, intradayChargesFor),
+      down: scenarioShort(exposure, amount, -1, intradayChargesFor),
+    };
+    title = 'Short · Intraday';
+    showInterest = false;
+  } else if(subMode === 'mtf'){
+    const exposure = amount*5;
     const borrowed = amount*4;
     const mtfInterest = borrowed * (mtfRate/100) * (days/365);
+    const dailyInterest = borrowed * (mtfRate/100) / 365;
     s = {
-      exposure: amount*5, capital: amount, interest: mtfInterest,
-      up: scenario(amount*5, amount, 1, mtfInterest),
-      down: scenario(amount*5, amount, -1, mtfInterest),
+      exposure, capital: amount, interest: mtfInterest,
+      up: scenarioLong(exposure, amount, 1, mtfInterest, deliveryCharges),
+      down: scenarioLong(exposure, amount, -1, mtfInterest, deliveryCharges),
+      dailyInterest,
     };
-    title = 'MTF (5× leverage)';
+    title = 'Long · MTF (5×)';
     showInterest = true;
-  } else {
+  } else if(subMode === 'intraday'){
+    const exposure = amount;
     s = {
-      exposure: amount, capital: amount, interest: 0,
-      up: scenario(amount, amount, 1, 0),
-      down: scenario(amount, amount, -1, 0),
+      exposure, capital: amount, interest: 0,
+      up: scenarioLong(exposure, amount, 1, 0, intradayChargesFor),
+      down: scenarioLong(exposure, amount, -1, 0, intradayChargesFor),
     };
-    title = 'Cash (delivery)';
+    title = 'Long · Intraday';
+    showInterest = false;
+  } else {
+    const exposure = amount;
+    s = {
+      exposure, capital: amount, interest: 0,
+      up: scenarioLong(exposure, amount, 1, 0, deliveryCharges),
+      down: scenarioLong(exposure, amount, -1, 0, deliveryCharges),
+    };
+    title = 'Long · Delivery';
     showInterest = false;
   }
 
-  out.innerHTML = `
+  const riseLabel = calcMode==='short' ? 'rises (loss side)' : 'rises';
+  const fallLabel = calcMode==='short' ? 'falls (profit side)' : 'falls';
+  const brokerLabelForCharges = BROKERS[brokerKey].label;
+
+  let breakevenHTML = '';
+  if(subMode === 'mtf' && calcMode === 'long'){
+    const netBeforeInterest = s.up.gross - s.up.fees; // profit before any interest is charged
+    if(s.dailyInterest > 0 && netBeforeInterest > 0){
+      const maxDays = Math.floor(netBeforeInterest / s.dailyInterest);
+      breakevenHTML = `<div class="breakeven-warning">
+        \u26A0\uFE0F At a ${Math.abs(movePct)}% move, MTF interest alone erases this profit after
+        <strong>~${maxDays} day${maxDays===1?'':'s'}</strong> of holding (₹${s.dailyInterest.toFixed(0)}/day on the borrowed ${fmtINR(amount*4)}).
+        Plan to exit before then, or the position stops being worth holding on interest cost alone.
+      </div>`;
+    } else if(netBeforeInterest <= 0){
+      breakevenHTML = `<div class="breakeven-warning">
+        \u26A0\uFE0F At a ${Math.abs(movePct)}% move, charges alone already exceed the gross profit — this trade doesn't clear costs even on day one.
+      </div>`;
+    }
+  }
+
+  out.innerHTML = breakevenHTML + `
     <div class="calc-scenario">
       <div class="calc-scenario-title">${title} — exposure ${fmtINR(s.exposure)}, your capital ${fmtINR(s.capital)}</div>
       <div class="calc-grid">
-        <div class="calc-col-head">If NIFTYBEES rises ${Math.abs(movePct)}%</div>
-        <div class="calc-col-head">If NIFTYBEES falls ${Math.abs(movePct)}%</div>
+        <div class="calc-col-head">If NIFTYBEES ${riseLabel} ${Math.abs(movePct)}%</div>
+        <div class="calc-col-head">If NIFTYBEES ${fallLabel} ${Math.abs(movePct)}%</div>
         <div class="calc-line"><span class="lbl">Gross P&amp;L</span><span class="val ${s.up.gross>=0?'bull':'bear'}">${fmtINR(s.up.gross)}</span></div>
         <div class="calc-line"><span class="lbl">Gross P&amp;L</span><span class="val ${s.down.gross>=0?'bull':'bear'}">${fmtINR(s.down.gross)}</span></div>
-        <div class="calc-line"><span class="lbl">Charges (brokerage+STT+GST etc.)</span><span class="val">-${fmtINR(s.up.fees)}</span></div>
-        <div class="calc-line"><span class="lbl">Charges (brokerage+STT+GST etc.)</span><span class="val">-${fmtINR(s.down.fees)}</span></div>
+        <div class="calc-line"><span class="lbl">${brokerLabelForCharges} charges</span><span class="val">-${fmtINR(s.up.fees)}</span></div>
+        <div class="calc-line"><span class="lbl">${brokerLabelForCharges} charges</span><span class="val">-${fmtINR(s.down.fees)}</span></div>
         ${showInterest ? `
         <div class="calc-line"><span class="lbl">MTF interest (${days}d @ ${mtfRate}%)</span><span class="val">-${fmtINR(s.up.interest)}</span></div>
         <div class="calc-line"><span class="lbl">MTF interest (${days}d @ ${mtfRate}%)</span><span class="val">-${fmtINR(s.down.interest)}</span></div>` : ''}
@@ -852,8 +1185,8 @@ function computeCalc(){
   summary.innerHTML = `
     <div class="calc-summary-title">Net result on your ${fmtINR(amount)}</div>
     <div class="summary-grid">
-      ${summaryItem(title+' · Up '+Math.abs(movePct)+'%', s.up.net)}
-      ${summaryItem(title+' · Down '+Math.abs(movePct)+'%', s.down.net)}
+      ${summaryItem(title+' · '+riseLabel.split(' ')[0]+' '+Math.abs(movePct)+'%', s.up.net)}
+      ${summaryItem(title+' · '+fallLabel.split(' ')[0]+' '+Math.abs(movePct)+'%', s.down.net)}
     </div>`;
 }
 
@@ -883,6 +1216,7 @@ async function runAll(){
 
 buildSliders();
 drawGauge(0);
+updateDisclaimer();
 runAll();
 </script>
 </body>
