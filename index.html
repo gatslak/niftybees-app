@@ -759,10 +759,16 @@ const data = { gift:null, preopen:null, us:null, asia:null, fx:null, vix:null };
 
 // Several public CORS proxies, tried in order — any one of them going down
 // (common — they're free services) shouldn't take the whole app with it.
+// corsproxy.io was removed: as of 2026 its free tier only works from
+// localhost, so it was silently failing on every hosted (non-localhost)
+// request — effectively cutting the real fallback pool down to two without
+// any visible sign of it. Replaced with two more that work from a hosted
+// site's origin.
 const PROXIES = [
   url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
   url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
-  url => 'https://corsproxy.io/?url=' + encodeURIComponent(url),
+  url => 'https://proxy.corsfix.com/?' + url,
+  url => 'https://cors.x2u.in/' + url,
 ];
 
 function setBadge(id, state, msg){ // live | failed | pending
@@ -1443,16 +1449,4 @@ async function runAll(){
   showRefreshPopup();
   await Promise.allSettled([fetchNiftybeesPrice(), fetchGift(), fetchPreopen(), fetchVix(), fetchUS(), fetchAsia(), fetchFx()]);
   computeScore();
-  document.getElementById('lastRun').textContent = 'Last run: ' + new Date().toLocaleString('en-IN', {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
-  btn.disabled = false; btn.textContent = 'Refresh all sources';
-  setTimeout(hideRefreshPopup, 900); // keep it visible briefly even on a very fast refresh
-}
-
-buildSliders();
-drawGauge(0);
-updateDisclaimer();
-runAll();
-setInterval(runAll, 15000); // auto-refresh every 15 seconds
-</script>
-</body>
-</html>
+  document.getElementById('lastRun').textContent = 'Last run: ' + new Date().toLocaleString('en-IN', {hour:'2-digit',minute:'2-digit',day:'2-
