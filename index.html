@@ -734,9 +734,17 @@ summary{
   <div class="holdings-row" data-slot="4" style="display:none;"><input type="number" inputmode="numeric" placeholder="e.g. 100" class="h-units" oninput="computeHoldings()"><input type="number" inputmode="decimal" step="0.01" placeholder="e.g. 274" class="h-price" oninput="computeHoldings()"></div>
   <div class="holdings-row" data-slot="5" style="display:none;"><input type="number" inputmode="numeric" placeholder="e.g. 200" class="h-units" oninput="computeHoldings()"><input type="number" inputmode="decimal" step="0.01" placeholder="e.g. 270" class="h-price" oninput="computeHoldings()"></div>
 
-  <div class="calc-row">
+  <div class="submode-toggle" style="margin-bottom:8px;">
+    <button type="button" class="submode-btn active" id="exit-mode-btn-price" onclick="setExitMode('price')">Exit Price</button>
+    <button type="button" class="submode-btn" id="exit-mode-btn-pct" onclick="setExitMode('pct')">Swing %</button>
+  </div>
+  <div class="calc-row" id="exit-price-row">
     <label>Exit price (₹) — blank uses live price</label>
     <input type="number" inputmode="decimal" step="0.01" id="holdings-exit-price" placeholder="e.g. 280" oninput="computeHoldings()">
+  </div>
+  <div class="calc-row" id="exit-pct-row" style="display:none;">
+    <label>Swing from average price (%)</label>
+    <input type="number" inputmode="decimal" step="0.1" id="holdings-exit-pct" placeholder="e.g. +1.5 or -1.5" oninput="computeHoldings()">
   </div>
 
   <div class="holdings-summary" id="holdings-summary">
@@ -988,6 +996,16 @@ function applyManualPrice(){
 }
 
 let holdingsMode = 'long';       // 'long' | 'short'
+let exitInputMode = 'price';     // 'price' | 'pct' — which exit input drives the calculation
+
+function setExitMode(mode){
+  exitInputMode = mode;
+  document.getElementById('exit-mode-btn-price').classList.toggle('active', mode==='price');
+  document.getElementById('exit-mode-btn-pct').classList.toggle('active', mode==='pct');
+  document.getElementById('exit-price-row').style.display = mode==='price' ? 'flex' : 'none';
+  document.getElementById('exit-pct-row').style.display = mode==='pct' ? 'flex' : 'none';
+  computeHoldings();
+}
 let holdingsSubMode = 'delivery'; // 'delivery' | 'intraday' | 'mtf' — only meaningful when holdingsMode==='long'
 
 function setHoldingsMode(mode){
@@ -1105,9 +1123,22 @@ function computeHoldings(){
     html += `<div class="hs-row"><span class="lbl">${holdingsMode==='long'?'Total invested':'Total short proceeds'} (${totalUnits} units, ${slotsUsed} order${slotsUsed===1?'':'s'})</span><span class="val">${fmtCharge(totalValue)}</span></div>`;
   }
 
-  const manualExit = parseFloat(document.getElementById('holdings-exit-price').value);
-  const exitPrice = manualExit>0 ? manualExit : livePrice;
-  const exitPriceIsLive = !(manualExit>0) && !!livePrice;
+  let exitPrice, exitPriceIsLive, exitPriceLabel;
+  if(exitInputMode === 'pct'){
+    const pct = parseFloat(document.getElementById('holdings-exit-pct').value);
+    if(!isNaN(pct)){
+      exitPrice = avgPrice * (1 + pct/100);
+      exitPriceIsLive = false;
+      exitPriceLabel = `(${pct>=0?'+':''}${pct}% swing from avg)`;
+    } else {
+      exitPrice = null;
+    }
+  } else {
+    const manualExit = parseFloat(document.getElementById('holdings-exit-price').value);
+    exitPrice = manualExit>0 ? manualExit : livePrice;
+    exitPriceIsLive = !(manualExit>0) && !!livePrice;
+    exitPriceLabel = exitPriceIsLive ? '(live)' : '(your entry)';
+  }
 
   if(exitPrice){
     const exitValue = totalUnits*exitPrice; // exit uses the REAL (leveraged) unit count
@@ -1134,7 +1165,7 @@ function computeHoldings(){
     }
 
     html += `
-      <div class="hs-row"><span class="lbl">Exit price used${exitPriceIsLive?' (live)':' (your entry)'}</span><span class="val">₹${exitPrice.toLocaleString('en-IN',{minimumFractionDigits:2})}</span></div>
+      <div class="hs-row"><span class="lbl">Exit price used ${exitPriceLabel}</span><span class="val">₹${exitPrice.toLocaleString('en-IN',{minimumFractionDigits:2})}</span></div>
       <div class="hs-row"><span class="lbl">Gross P&amp;L</span><span class="val ${grossPnl>=0?'bull':'bear'}">${grossPnl>=0?'+':''}${fmtCharge(grossPnl)}</span></div>
     `;
 
@@ -1449,4 +1480,16 @@ async function runAll(){
   showRefreshPopup();
   await Promise.allSettled([fetchNiftybeesPrice(), fetchGift(), fetchPreopen(), fetchVix(), fetchUS(), fetchAsia(), fetchFx()]);
   computeScore();
-  document.getElementById('lastRun').textContent = 'Last run: ' + new Date().toLocaleString('en-IN', {hour:'2-digit',minute:'2-digit',day:'2-
+  document.getElementById('lastRun').textContent = 'Last run: ' + new Date().toLocaleString('en-IN', {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
+  btn.disabled = false; btn.textContent = 'Refresh all sources';
+  setTimeout(hideRefreshPopup, 900); // keep it visible briefly even on a very fast refresh
+}
+
+buildSliders();
+drawGauge(0);
+updateDisclaimer();
+runAll();
+setInterval(runAll, 15000); // auto-refresh every 15 seconds
+</script>
+</body>
+</html>
