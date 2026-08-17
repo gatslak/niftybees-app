@@ -790,14 +790,20 @@ function setBadge(id, state, msg){ // live | failed | pending
 }
 
 async function fetchRaw(url, ms=9000){
-  const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), ms);
-  try{
-    const r = await fetch(url, {signal: ctrl.signal, cache: 'no-store'});
-    clearTimeout(t);
-    if(!r.ok) throw new Error('HTTP '+r.status);
-    return r;
-  }catch(e){ clearTimeout(t); throw e; }
+  // Deliberately not using AbortController/AbortSignal here — some sandboxed
+  // preview environments relay fetch through postMessage, and AbortSignal
+  // objects cannot be structured-cloned across that boundary, which throws
+  // before the request even starts. A plain Promise.race timeout has no
+  // such dependency and behaves identically in every environment. The one
+  // tradeoff: the underlying request isn't actually cancelled on timeout,
+  // it just stops being awaited — a negligible cost here.
+  const fetchPromise = fetch(url, {cache: 'no-store'});
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('timeout after ' + ms + 'ms')), ms);
+  });
+  const r = await Promise.race([fetchPromise, timeoutPromise]);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  return r;
 }
 
 // Appends a cache-busting timestamp so neither the browser nor an
@@ -810,17 +816,21 @@ function cacheBust(url){
 
 // Tries each proxy in turn against the target URL; throws the last error
 // if all of them fail. Returns the successful Response.
-async function fetchViaProxy(targetUrl, ms=9000){
+async function fetchViaProxy(targetUrl, ms=7000){
   const bustedUrl = cacheBust(targetUrl);
-  let lastErr;
-  for(const build of PROXIES){
-    try{
-      return await fetchRaw(build(bustedUrl), ms);
-    }catch(e){
-      lastErr = e;
-    }
+  // All proxies fired at once, not one after another — Promise.any resolves
+  // the instant ANY of them succeeds, and only fails once every single one
+  // has failed. This bounds worst-case wait to roughly one timeout period
+  // (~7s) instead of the sum of all four (~28-36s), which is what was
+  // making the app appear to hang indefinitely under degraded network
+  // conditions where proxies were slow-failing rather than fast-failing.
+  const attempts = PROXIES.map(build => fetchRaw(build(bustedUrl), ms));
+  try{
+    return await Promise.any(attempts);
+  }catch(aggregateError){
+    const reasons = (aggregateError.errors || []).map(e => e.message).join('; ');
+    throw new Error(reasons || 'all proxies failed');
   }
-  throw lastErr || new Error('all proxies failed');
 }
 
 // ---------------- GIFT Nifty (scrape) ----------------
@@ -1474,15 +1484,30 @@ function hideRefreshPopup(){
   document.getElementById('refresh-popup').classList.remove('show');
 }
 
+let refreshInProgress = false;
+
 async function runAll(){
+  if(refreshInProgress){
+    // A previous cycle is still running (can happen if the network is slow
+    // enough that one cycle takes longer than the 15s auto-refresh
+    // interval) — skip this tick rather than reset every badge back to
+    // "pending" mid-attempt, which made things look stuck even when they
+    // were actually progressing.
+    return;
+  }
+  refreshInProgress = true;
   const btn = document.getElementById('refreshBtn');
   btn.disabled = true; btn.textContent = 'Fetching…';
   showRefreshPopup();
-  await Promise.allSettled([fetchNiftybeesPrice(), fetchGift(), fetchPreopen(), fetchVix(), fetchUS(), fetchAsia(), fetchFx()]);
-  computeScore();
-  document.getElementById('lastRun').textContent = 'Last run: ' + new Date().toLocaleString('en-IN', {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
-  btn.disabled = false; btn.textContent = 'Refresh all sources';
-  setTimeout(hideRefreshPopup, 900); // keep it visible briefly even on a very fast refresh
+  try{
+    await Promise.allSettled([fetchNiftybeesPrice(), fetchGift(), fetchPreopen(), fetchVix(), fetchUS(), fetchAsia(), fetchFx()]);
+    computeScore();
+    document.getElementById('lastRun').textContent = 'Last run: ' + new Date().toLocaleString('en-IN', {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
+  } finally {
+    btn.disabled = false; btn.textContent = 'Refresh all sources';
+    setTimeout(hideRefreshPopup, 900); // keep it visible briefly even on a very fast refresh
+    refreshInProgress = false;
+  }
 }
 
 buildSliders();
