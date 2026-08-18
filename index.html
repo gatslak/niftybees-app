@@ -816,20 +816,32 @@ function cacheBust(url){
 
 // Tries each proxy in turn against the target URL; throws the last error
 // if all of them fail. Returns the successful Response.
+let proxyRotation = 0; // spreads the "first try" across different proxies over time, instead of always hammering the same one first
+
 async function fetchViaProxy(targetUrl, ms=7000){
   const bustedUrl = cacheBust(targetUrl);
-  // All proxies fired at once, not one after another — Promise.any resolves
-  // the instant ANY of them succeeds, and only fails once every single one
-  // has failed. This bounds worst-case wait to roughly one timeout period
-  // (~7s) instead of the sum of all four (~28-36s), which is what was
-  // making the app appear to hang indefinitely under degraded network
-  // conditions where proxies were slow-failing rather than fast-failing.
-  const attempts = PROXIES.map(build => fetchRaw(build(bustedUrl), ms));
+  // Try ONE proxy first (rotating which one each call, so load spreads
+  // across all four over time) — only escalate to firing the remaining
+  // three in parallel if that first one fails. On a normal working day this
+  // means most fetches use exactly 1 request, not 4. Racing all 4 at once
+  // on every single one of ~9 data points, every 15s, was very likely
+  // bursting past these free proxies' rate limits (one caps at 20
+  // requests/minute, shared across everyone using it) — this fixes that
+  // without giving up the earlier fast-failure fix for when the first
+  // proxy genuinely is down.
+  const startIdx = proxyRotation % PROXIES.length;
+  proxyRotation++;
+  const first = PROXIES[startIdx];
   try{
-    return await Promise.any(attempts);
-  }catch(aggregateError){
-    const reasons = (aggregateError.errors || []).map(e => e.message).join('; ');
-    throw new Error(reasons || 'all proxies failed');
+    return await fetchRaw(first(bustedUrl), ms);
+  }catch(firstErr){
+    const rest = PROXIES.filter((_, i) => i !== startIdx).map(build => fetchRaw(build(bustedUrl), ms));
+    try{
+      return await Promise.any(rest);
+    }catch(aggregateError){
+      const reasons = [firstErr.message, ...((aggregateError.errors || []).map(e => e.message))].join('; ');
+      throw new Error(reasons || 'all proxies failed');
+    }
   }
 }
 
@@ -1513,7 +1525,7 @@ async function runAll(){
 buildSliders();
 drawGauge(0);
 runAll();
-setInterval(runAll, 15000); // auto-refresh every 15 seconds
+setInterval(runAll, 60000); // auto-refresh every 60 seconds — was 15s, which combined with racing multiple proxies per data point was very likely bursting past free proxy rate limits
 </script>
 </body>
 </html>
