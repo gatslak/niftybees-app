@@ -765,13 +765,16 @@ const WEIGHTS = {
 };
 const data = { gift:null, preopen:null, us:null, asia:null, fx:null, vix:null };
 
-// Several public CORS proxies, tried in order — any one of them going down
-// (common — they're free services) shouldn't take the whole app with it.
-// corsproxy.io was removed: as of 2026 its free tier only works from
-// localhost, so it was silently failing on every hosted (non-localhost)
-// request — effectively cutting the real fallback pool down to two without
-// any visible sign of it. Replaced with two more that work from a hosted
-// site's origin.
+// PRIMARY: your own Cloudflare Worker proxy. Unlike the shared public
+// proxies below, this one is tied to your own Cloudflare account with a
+// 100,000 requests/day free quota that nobody else can exhaust — so it
+// can't be rate-limited or IP-blocked by other people's usage, which is
+// exactly what was breaking the app before.
+const PRIMARY_PROXY = url => 'https://niftybees-proxy.119ecw.workers.dev/?url=' + encodeURIComponent(url);
+
+// FALLBACK ONLY: shared public CORS proxies, used solely if the Worker
+// above is somehow unreachable. These are rate-limited per IP and shared
+// globally, so they're unreliable by nature — kept purely as a safety net.
 const PROXIES = [
   url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
   url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
@@ -814,32 +817,23 @@ function cacheBust(url){
   return url + sep + '_cb=' + Date.now();
 }
 
-// Tries each proxy in turn against the target URL; throws the last error
-// if all of them fail. Returns the successful Response.
-let proxyRotation = 0; // spreads the "first try" across different proxies over time, instead of always hammering the same one first
-
+// Tries your own Cloudflare Worker first, then public proxies as backup.
 async function fetchViaProxy(targetUrl, ms=7000){
   const bustedUrl = cacheBust(targetUrl);
-  // Try ONE proxy first (rotating which one each call, so load spreads
-  // across all four over time) — only escalate to firing the remaining
-  // three in parallel if that first one fails. On a normal working day this
-  // means most fetches use exactly 1 request, not 4. Racing all 4 at once
-  // on every single one of ~9 data points, every 15s, was very likely
-  // bursting past these free proxies' rate limits (one caps at 20
-  // requests/minute, shared across everyone using it) — this fixes that
-  // without giving up the earlier fast-failure fix for when the first
-  // proxy genuinely is down.
-  const startIdx = proxyRotation % PROXIES.length;
-  proxyRotation++;
-  const first = PROXIES[startIdx];
+
+  // 1. Your own Worker — should succeed essentially every time. It has a
+  //    100k/day quota that only you use, so no shared-rate-limit issues.
   try{
-    return await fetchRaw(first(bustedUrl), ms);
-  }catch(firstErr){
-    const rest = PROXIES.filter((_, i) => i !== startIdx).map(build => fetchRaw(build(bustedUrl), ms));
+    return await fetchRaw(PRIMARY_PROXY(bustedUrl), ms);
+  }catch(primaryErr){
+    // 2. Only if the Worker itself is unreachable, fall back to the public
+    //    proxies in parallel as a last resort.
+    const fallbacks = PROXIES.map(build => fetchRaw(build(bustedUrl), ms));
     try{
-      return await Promise.any(rest);
+      return await Promise.any(fallbacks);
     }catch(aggregateError){
-      const reasons = [firstErr.message, ...((aggregateError.errors || []).map(e => e.message))].join('; ');
+      const reasons = ['worker: ' + primaryErr.message,
+                        ...((aggregateError.errors || []).map(e => e.message))].join('; ');
       throw new Error(reasons || 'all proxies failed');
     }
   }
