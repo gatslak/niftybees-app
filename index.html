@@ -922,6 +922,8 @@ function applyManualVix(){
 }
 
 // ---------------- Global cues via Yahoo Finance ----------------
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
 async function fetchYahooChart(symbol){
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
   const r = await fetchViaProxy(url);
@@ -1239,7 +1241,12 @@ async function fetchUS(){
   setBadge('us','pending');
   document.getElementById('val-us').textContent = 'Refreshing…';
   try{
-    const [dow, nasdaq] = await Promise.all([fetchYahooPct('%5EDJI'), fetchYahooPct('%5EIXIC')]);
+    // Sequential, not Promise.all — Yahoo rejects rapid parallel requests
+    // from one source (returns 404/429), which is what was making these two
+    // cards fail while single-request cards like USD/INR succeeded.
+    const dow = await fetchYahooPct('^DJI');
+    await sleep(300);
+    const nasdaq = await fetchYahooPct('^IXIC');
     const avg = (dow+nasdaq)/2;
     data.us = avg;
     document.getElementById('val-us').textContent = `Dow ${dow>0?'+':''}${dow.toFixed(2)}%  ·  Nasdaq ${nasdaq>0?'+':''}${nasdaq.toFixed(2)}%`;
@@ -1261,7 +1268,9 @@ async function fetchAsia(){
   setBadge('asia','pending');
   document.getElementById('val-asia').textContent = 'Refreshing…';
   try{
-    const [nikkei, hsi] = await Promise.all([fetchYahooPct('%5EN225'), fetchYahooPct('%5EHSI')]);
+    const nikkei = await fetchYahooPct('^N225');
+    await sleep(300);
+    const hsi = await fetchYahooPct('^HSI');
     const avg = (nikkei+hsi)/2;
     data.asia = avg;
     document.getElementById('val-asia').textContent = `Nikkei ${nikkei>0?'+':''}${nikkei.toFixed(2)}%  ·  HSI ${hsi>0?'+':''}${hsi.toFixed(2)}%`;
@@ -1506,7 +1515,17 @@ async function runAll(){
   btn.disabled = true; btn.textContent = 'Fetching…';
   showRefreshPopup();
   try{
-    await Promise.allSettled([fetchNiftybeesPrice(), fetchGift(), fetchPreopen(), fetchVix(), fetchUS(), fetchAsia(), fetchFx()]);
+    // Staggered rather than all-at-once. Yahoo in particular returns
+    // 404/429 when it sees several near-simultaneous requests from the
+    // same origin, which is why the multi-symbol cards (US, Asia) were
+    // failing while single-request cards succeeded. A short gap between
+    // each keeps every source happy; total cycle still well under the
+    // 60s refresh interval.
+    const tasks = [fetchNiftybeesPrice, fetchGift, fetchPreopen, fetchVix, fetchUS, fetchAsia, fetchFx];
+    for(const task of tasks){
+      await task().catch(()=>{}); // individual failures already surface in their own card
+      await sleep(250);
+    }
     computeScore();
     document.getElementById('lastRun').textContent = 'Last run: ' + new Date().toLocaleString('en-IN', {hour:'2-digit',minute:'2-digit',day:'2-digit',month:'short'});
   } finally {
