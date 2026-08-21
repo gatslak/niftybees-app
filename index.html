@@ -424,6 +424,64 @@ body{
 }
 .breakeven-warning strong{color:var(--bear);}
 
+/* ---- GIFT Nifty live level ---- */
+#gift-level-box{
+  margin-top:10px;
+  padding-top:9px;
+  border-top:1px solid var(--line);
+}
+.gl-label{
+  font-size:10.5px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:4px;
+}
+.gl-row{display:flex;align-items:baseline;gap:10px;}
+.gl-value{
+  font-family:Georgia,'Times New Roman',serif;
+  font-weight:600;
+  font-size:19px;
+  color:var(--text);
+}
+.gl-pct{font-family:Georgia,'Times New Roman',serif;font-size:13px;}
+
+/* ---- Pre-open breadth (advances / declines / unchanged) ---- */
+#breadth-box{
+  margin-top:12px;
+  padding-top:10px;
+  border-top:1px solid var(--line);
+}
+.breadth-label{
+  font-size:10.5px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:7px;
+}
+.breadth-bar{
+  display:flex;
+  height:9px;
+  border-radius:5px;
+  overflow:hidden;
+  background:var(--surface-2);
+}
+.bseg{height:100%;}
+.bseg.badv{background:var(--bull);}
+.bseg.bdec{background:var(--bear);}
+.bseg.bunch{background:var(--muted);opacity:0.5;}
+.breadth-nums{
+  display:flex;
+  justify-content:space-between;
+  margin-top:7px;
+  gap:6px;
+}
+.bnum{
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:12px;
+}
+.bnum.bmuted{color:var(--muted);font-weight:400;}
+
 .app-footer{
   display:flex;
   align-items:center;
@@ -621,58 +679,36 @@ summary{
 <div class="card" id="card-gift">
   <div class="card-top"><div class="card-name">Implied Nifty gap</div><span class="badge pending" id="badge-gift">pending</span></div>
   <div class="card-value" id="val-gift">--</div>
+  <div id="gift-level-box" style="display:none;"></div>
   <div class="card-sub" id="sub-gift">Scraped best-effort — proxied third-party page, breaks without notice</div>
-  <div class="manual-row">
-    <input type="number" step="0.1" placeholder="Enter gap in points e.g. -34.3" id="manual-gift">
-    <button onclick="applyManualGift()">Use</button>
-  </div>
 </div>
 
 <div class="section-title">NSE Pre-Open (official)</div>
 <div class="card" id="card-preopen">
   <div class="card-top"><div class="card-name">NIFTY 50 pre-open move</div><span class="badge pending" id="badge-preopen">pending</span></div>
   <div class="card-value" id="val-preopen">--</div>
-  <div class="card-sub" id="sub-preopen">nseindia.com blocks most cross-origin browser calls — likely to need manual entry</div>
-  <div class="manual-row">
-    <input type="number" step="0.01" placeholder="% change e.g. -0.3" id="manual-preopen">
-    <button onclick="applyManualPreopen()">Use</button>
-  </div>
+  <div class="card-sub" id="sub-preopen">Only available during NSE's pre-open window (~9:00–9:08 AM IST)</div>
+  <div id="breadth-box" style="display:none;"></div>
 </div>
 
 <div class="section-title">Global Cues</div>
 <div class="card" id="card-us">
   <div class="card-top"><div class="card-name">US markets (Dow / Nasdaq)</div><span class="badge pending" id="badge-us">pending</span></div>
   <div class="card-value" id="val-us">--</div>
-  <div class="manual-row">
-    <input type="number" step="0.01" placeholder="Avg % move e.g. -0.3" id="manual-us">
-    <button onclick="applyManualUS()">Use</button>
-  </div>
 </div>
 <div class="card" id="card-asia">
   <div class="card-top"><div class="card-name">Asia (Nikkei / Hang Seng)</div><span class="badge pending" id="badge-asia">pending</span></div>
   <div class="card-value" id="val-asia">--</div>
-  <div class="manual-row">
-    <input type="number" step="0.01" placeholder="Avg % move e.g. -0.5" id="manual-asia">
-    <button onclick="applyManualAsia()">Use</button>
-  </div>
 </div>
 <div class="card" id="card-fx">
   <div class="card-top"><div class="card-name">USD/INR</div><span class="badge pending" id="badge-fx">pending</span></div>
   <div class="card-value" id="val-fx">--</div>
-  <div class="manual-row">
-    <input type="number" step="0.01" placeholder="% change e.g. +0.1" id="manual-fx">
-    <button onclick="applyManualFx()">Use</button>
-  </div>
 </div>
 
 <div class="section-title">Volatility</div>
 <div class="card" id="card-vix">
   <div class="card-top"><div class="card-name">India VIX</div><span class="badge pending" id="badge-vix">pending</span></div>
   <div class="card-value" id="val-vix">--</div>
-  <div class="manual-row">
-    <input type="number" step="0.01" placeholder="% change e.g. -2.1" id="manual-vix">
-    <button onclick="applyManualVix()">Use</button>
-  </div>
 </div>
 
 <details>
@@ -852,21 +888,31 @@ async function fetchGift(){
     data.gift = gap;
     document.getElementById('val-gift').textContent = (gap>0?'+':'')+gap.toFixed(1)+' pts';
     document.getElementById('val-gift').className = 'card-value ' + (gap>0?'bull':gap<0?'bear':'');
-    setBadge('gift','live','Implied Nifty 50 opening gap');
+
+    // Also pull the live GIFT Nifty futures level and its own change, so you
+    // can see where GIFT is actually trading — not just the derived gap.
+    let subText = 'Implied Nifty 50 opening gap';
+    const lvl = text.match(/GIFT\s*Nifty[\s\S]{0,80}?(\d{2},\d{3}\.\d{2}|\d{5}\.\d{2})/);
+    const chg = text.match(/GIFT\s*Nifty[\s\S]{0,200}?\(\s*([+-]?\d+\.\d+)\s*%\s*\)/);
+    if(lvl){
+      const level = parseFloat(lvl[1].replace(/,/g,''));
+      const pct = chg ? parseFloat(chg[1]) : null;
+      const box = document.getElementById('gift-level-box');
+      box.style.display = 'block';
+      box.innerHTML = `
+        <div class="gl-label">GIFT Nifty live level</div>
+        <div class="gl-row">
+          <span class="gl-value">${level.toLocaleString('en-IN',{minimumFractionDigits:2})}</span>
+          ${pct!==null ? `<span class="gl-pct ${pct>0?'bull':pct<0?'bear':''}">${pct>0?'+':''}${pct.toFixed(2)}%</span>` : ''}
+        </div>`;
+      subText = 'Implied gap + live GIFT Nifty futures level';
+    }
+    setBadge('gift','live', subText);
   }catch(e){
-    setBadge('gift','failed', 'Fetch failed ('+e.message+') — enter manually below');
+    document.getElementById('gift-level-box').style.display = 'none';
+    setBadge('gift','failed', 'Fetch failed ('+e.message+')');
   }
 }
-function applyManualGift(){
-  const v = parseFloat(document.getElementById('manual-gift').value);
-  if(isNaN(v)) return;
-  data.gift = v;
-  document.getElementById('val-gift').textContent = (v>0?'+':'')+v.toFixed(1)+' pts (manual)';
-  document.getElementById('val-gift').className = 'card-value ' + (v>0?'bull':v<0?'bear':'');
-  setBadge('gift','live');
-  computeScore();
-}
-
 // ---------------- NSE pre-open (official) ----------------
 async function fetchPreopen(){
   setBadge('preopen','pending');
@@ -879,21 +925,38 @@ async function fetchPreopen(){
     data.preopen = pc;
     document.getElementById('val-preopen').textContent = (pc>0?'+':'')+pc.toFixed(2)+'%';
     document.getElementById('val-preopen').className = 'card-value ' + (pc>0?'bull':pc<0?'bear':'');
-    setBadge('preopen','live', `Adv/Dec/Unch: ${j.advances}/${j.declines}/${j.unchanged}`);
+    renderBreadth(j.advances, j.declines, j.unchanged);
+    setBadge('preopen','live', 'Nifty 50 pre-open indicative move');
   }catch(e){
-    setBadge('preopen','failed', 'Blocked/failed ('+e.message+') — enter manually if you have it');
+    document.getElementById('breadth-box').style.display = 'none';
+    setBadge('preopen','failed', 'Blocked/failed ('+e.message+')');
   }
 }
-function applyManualPreopen(){
-  const v = parseFloat(document.getElementById('manual-preopen').value);
-  if(isNaN(v)) return;
-  data.preopen = v;
-  document.getElementById('val-preopen').textContent = (v>0?'+':'')+v.toFixed(2)+'% (manual)';
-  document.getElementById('val-preopen').className = 'card-value ' + (v>0?'bull':v<0?'bear':'');
-  setBadge('preopen','live');
-  computeScore();
-}
 
+// Shows how many of the Nifty 50 constituents are up / down / flat in the
+// pre-open session — a breadth read that often tells you more about the
+// likely open than the index number alone (e.g. 50/0/0 is a far stronger
+// signal than +0.6% on its own suggests).
+function renderBreadth(adv, dec, unch){
+  const a = Number(adv)||0, d = Number(dec)||0, u = Number(unch)||0;
+  const total = a + d + u;
+  const box = document.getElementById('breadth-box');
+  if(!total){ box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  const aPct = (a/total*100), dPct = (d/total*100), uPct = (u/total*100);
+  box.innerHTML = `
+    <div class="breadth-label">Pre-open breadth — ${total} Nifty 50 stocks</div>
+    <div class="breadth-bar">
+      <div class="bseg badv" style="width:${aPct}%"></div>
+      <div class="bseg bunch" style="width:${uPct}%"></div>
+      <div class="bseg bdec" style="width:${dPct}%"></div>
+    </div>
+    <div class="breadth-nums">
+      <span class="bnum bull">${a} advancing</span>
+      <span class="bnum bmuted">${u} unchanged</span>
+      <span class="bnum bear">${d} declining</span>
+    </div>`;
+}
 // ---------------- India VIX (official) ----------------
 async function fetchVix(){
   setBadge('vix','pending');
@@ -911,16 +974,6 @@ async function fetchVix(){
     setBadge('vix','failed', e.message);
   }
 }
-function applyManualVix(){
-  const v = parseFloat(document.getElementById('manual-vix').value);
-  if(isNaN(v)) return;
-  data.vix = v;
-  document.getElementById('val-vix').textContent = (v>0?'+':'')+v.toFixed(2)+'% (manual)';
-  document.getElementById('val-vix').className = 'card-value ' + (v<0?'bull':v>0?'bear':'');
-  setBadge('vix','live');
-  computeScore();
-}
-
 // ---------------- Global cues via Yahoo Finance ----------------
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
@@ -1254,16 +1307,6 @@ async function fetchUS(){
     setBadge('us','live');
   }catch(e){ setBadge('us','failed'); document.getElementById('val-us').textContent = 'Failed: '+e.message; }
 }
-function applyManualUS(){
-  const v = parseFloat(document.getElementById('manual-us').value);
-  if(isNaN(v)) return;
-  data.us = v;
-  document.getElementById('val-us').textContent = (v>0?'+':'')+v.toFixed(2)+'% avg (manual)';
-  document.getElementById('val-us').className = 'card-value ' + (v>0?'bull':v<0?'bear':'');
-  setBadge('us','live');
-  computeScore();
-}
-
 async function fetchAsia(){
   setBadge('asia','pending');
   document.getElementById('val-asia').textContent = 'Refreshing…';
@@ -1278,16 +1321,6 @@ async function fetchAsia(){
     setBadge('asia','live');
   }catch(e){ setBadge('asia','failed'); document.getElementById('val-asia').textContent = 'Failed: '+e.message; }
 }
-function applyManualAsia(){
-  const v = parseFloat(document.getElementById('manual-asia').value);
-  if(isNaN(v)) return;
-  data.asia = v;
-  document.getElementById('val-asia').textContent = (v>0?'+':'')+v.toFixed(2)+'% avg (manual)';
-  document.getElementById('val-asia').className = 'card-value ' + (v>0?'bull':v<0?'bear':'');
-  setBadge('asia','live');
-  computeScore();
-}
-
 async function fetchFx(){
   setBadge('fx','pending');
   document.getElementById('val-fx').textContent = 'Refreshing…';
@@ -1299,16 +1332,6 @@ async function fetchFx(){
     setBadge('fx','live');
   }catch(e){ setBadge('fx','failed'); document.getElementById('val-fx').textContent = 'Failed: '+e.message; }
 }
-function applyManualFx(){
-  const v = parseFloat(document.getElementById('manual-fx').value);
-  if(isNaN(v)) return;
-  data.fx = v;
-  document.getElementById('val-fx').textContent = (v>0?'+':'')+v.toFixed(2)+'% (manual)';
-  document.getElementById('val-fx').className = 'card-value ' + (v<0?'bull':v>0?'bear':'');
-  setBadge('fx','live');
-  computeScore();
-}
-
 // ---------------- scoring ----------------
 function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
 
