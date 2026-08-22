@@ -22,6 +22,7 @@
   --muted:#7C8AA5;
 }
 *{box-sizing:border-box;}
+.signals-heading{display:none;}
 html,body{margin:0;padding:0;background:var(--bg);color:var(--text);}
 body{
   font-family:Georgia,'Times New Roman',serif;
@@ -550,6 +551,20 @@ body{
   text-align-last:right;
 }
 #holdings-broker option[value="kotakneo_pro"], #holdings-broker option[value="kotakneo_std"]{color:#E4572E;}
+.stat-list{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:flex;
+  flex-wrap:wrap;
+}
+.stat-list li{
+  display:inline;
+}
+.stat-list li + li::before{
+  content:"  ·  ";
+  color:var(--muted);
+}
 .calc-readout{
   font-family:Georgia,'Times New Roman',serif;
   font-size:14px;
@@ -643,6 +658,116 @@ summary{
   font-size:12px;
 }
 .weight-row input{width:110px;accent-color:var(--gold);}
+
+@media (min-width: 860px){
+  body{
+    max-width: 1180px;
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+
+  /* The theme applies its own max-width (content-size) + centering to every
+     direct child of the content area, which was shrinking these rows to a
+     narrow column AND, for the <button>, resetting its side margins to 0
+     instead of centering it — that mismatch was the misalignment. Overriding
+     max-width/margins here explicitly makes every row use the full row width
+     and line up on the same left/right edges. */
+  .hero-row,
+  .refresh-btn,
+  .signals-heading,
+  .signals-grid,
+  details,
+  .calculator-row{
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  /* Line 1: price + bias gauge side by side */
+  .hero-row{
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+  }
+  .hero-row .price-card,
+  .hero-row .gauge-card{
+    flex: 1;
+    margin-bottom: 0;
+  }
+
+  .hero-row .price-card{
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .refresh-btn{
+    margin-top: 6px;
+  }
+
+  .signals-heading{
+    display: block;
+    font-family: Georgia,'Times New Roman',serif;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 24px 0 10px 2px;
+  }
+
+  /* Line 2: all signal cards as one clean, uniform grid — each card already
+     self-labels (card-name inside), so the outer group headings are hidden
+     to avoid the uneven "Global Cues" stack from before */
+  .signals-grid{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px 20px;
+    align-items: start;
+  }
+  .signals-grid .section-title{
+    display: none;
+  }
+  .signals-grid .card{
+    margin-bottom: 0;
+    height: 100%;
+  }
+
+  /* Dow/Nasdaq and Nikkei/HSI read as two distinct bulleted lines on desktop
+     instead of being crammed onto one line separated by a dot */
+  .stat-list{
+    display: block;
+  }
+  .stat-list li{
+    display: list-item;
+    list-style: disc;
+    margin-left: 18px;
+    padding-left: 2px;
+    line-height: 1.5;
+  }
+  .stat-list li + li::before{
+    content: none;
+  }
+
+  details{
+    margin: 14px 0 4px;
+  }
+  details summary{
+    cursor: pointer;
+  }
+
+  /* Line 3 (last): calculator gets its own dedicated, focused row */
+  .calculator-row{
+    margin-top: 10px;
+  }
+  .calculator-row .section-title{
+    margin-top: 0;
+    text-align: center;
+  }
+  .calculator-row .holdings-card{
+    max-width: 720px;
+    margin: 0 auto;
+  }
+}
 </style>
 </head>
 <body>
@@ -658,6 +783,7 @@ summary{
 </div>
 <div class="timestamp" id="lastRun">Not run yet</div>
 
+<div class="hero-row">
 <div class="price-card">
   <div class="price-top">
     <div>
@@ -689,8 +815,12 @@ summary{
   <div class="disclaimer">A weighted lean from the signals below — not a prediction. Confirm against the actual 9:15 open before acting on it.</div>
 </div>
 
+</div>
+
 <button class="refresh-btn" id="refreshBtn" onclick="runAll()">Refresh all sources</button>
 
+<div class="signals-heading">Market Indicators</div>
+<div class="signals-grid">
 <div class="section-title">GIFT Nifty (NSE IX)</div>
 <div class="card" id="card-gift">
   <div class="card-top"><div class="card-name">Implied Nifty gap</div><span class="badge pending" id="badge-gift">pending</span></div>
@@ -727,11 +857,14 @@ summary{
   <div class="card-value" id="val-vix">--</div>
 </div>
 
+</div>
+
 <details>
   <summary>Tune signal weights</summary>
   <div id="weightSliders"></div>
 </details>
 
+<div class="calculator-row">
 <div class="section-title">Return Calculator — My NIFTYBEES Holdings</div>
 <div class="card holdings-card">
 
@@ -803,6 +936,7 @@ summary{
     <div class="calc-empty">Enter at least one slot to see your average price.</div>
   </div>
   <div class="disclaimer">Entry charges are calculated per order (each slot is a separate trade, so brokerage caps apply individually) — exit is calculated as one order for the full quantity. Not investment advice.</div>
+</div>
 </div>
 
 <div class="app-footer">
@@ -1356,7 +1490,7 @@ async function fetchUS(){
     const nasdaq = await fetchYahooPct('^IXIC');
     const avg = (dow+nasdaq)/2;
     data.us = avg;
-    document.getElementById('val-us').textContent = `Dow ${dow>0?'+':''}${dow.toFixed(2)}%  ·  Nasdaq ${nasdaq>0?'+':''}${nasdaq.toFixed(2)}%`;
+    document.getElementById('val-us').innerHTML = `<ul class="stat-list"><li>Dow ${dow>0?'+':''}${dow.toFixed(2)}%</li><li>Nasdaq ${nasdaq>0?'+':''}${nasdaq.toFixed(2)}%</li></ul>`;
     document.getElementById('val-us').className = 'card-value ' + (avg>0?'bull':avg<0?'bear':'');
     setBadge('us','live');
   }catch(e){ setBadge('us','failed'); document.getElementById('val-us').textContent = 'Failed: '+e.message; }
@@ -1370,7 +1504,7 @@ async function fetchAsia(){
     const hsi = await fetchYahooPct('^HSI');
     const avg = (nikkei+hsi)/2;
     data.asia = avg;
-    document.getElementById('val-asia').textContent = `Nikkei ${nikkei>0?'+':''}${nikkei.toFixed(2)}%  ·  HSI ${hsi>0?'+':''}${hsi.toFixed(2)}%`;
+    document.getElementById('val-asia').innerHTML = `<ul class="stat-list"><li>Nikkei ${nikkei>0?'+':''}${nikkei.toFixed(2)}%</li><li>HSI ${hsi>0?'+':''}${hsi.toFixed(2)}%</li></ul>`;
     document.getElementById('val-asia').className = 'card-value ' + (avg>0?'bull':avg<0?'bear':'');
     setBadge('asia','live');
   }catch(e){ setBadge('asia','failed'); document.getElementById('val-asia').textContent = 'Failed: '+e.message; }
