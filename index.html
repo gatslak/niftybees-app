@@ -1513,9 +1513,12 @@ async function fetchFx(){
   setBadge('fx','pending');
   document.getElementById('val-fx').textContent = 'Refreshing…';
   try{
-    const pc = await fetchYahooPct('INR=X');
+    const c = await fetchYahooChart('INR=X');
+    const rate = c.meta.regularMarketPrice ?? c.last;
+    const prevRate = c.meta.previousClose ?? c.prev;
+    const pc = prevRate ? (rate-prevRate)/prevRate*100 : c.pct;
     data.fx = pc;
-    document.getElementById('val-fx').textContent = (pc>0?'+':'')+pc.toFixed(2)+'% (rupee '+(pc>0?'weaker':'stronger')+')';
+    document.getElementById('val-fx').textContent = '₹'+rate.toFixed(2)+'  ·  '+(pc>0?'+':'')+pc.toFixed(2)+'% (rupee '+(pc>0?'weaker':'stronger')+')';
     document.getElementById('val-fx').className = 'card-value ' + (pc<0?'bull':pc>0?'bear':'');
     setBadge('fx','live');
   }catch(e){ setBadge('fx','failed'); document.getElementById('val-fx').textContent = 'Failed: '+e.message; }
