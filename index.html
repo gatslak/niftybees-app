@@ -31,6 +31,25 @@ body{
   margin:0 auto;
   -webkit-font-smoothing:antialiased;
 }
+/* On WordPress this page is wrapped in the theme's own block-template
+   containers, which add their own width cap and padding on top of the
+   rules above (a body max-width of ~1180px on desktop, plus 30px of
+   "global padding" on .entry-content at every size) — stacking with our
+   own padding and leaving noticeably less usable width than the same
+   page on GitHub Pages, which has no such wrapper. These overrides only
+   match the WordPress body class for this page template, so they are a
+   no-op on GitHub Pages. */
+body.page-template-nifty-app-blank{
+  max-width:520px !important;
+  padding:20px 16px 48px !important;
+  margin:0 auto !important;
+}
+body.page-template-nifty-app-blank .entry-content{
+  padding-left:0 !important;
+  padding-right:0 !important;
+  max-width:none !important;
+  margin:0 !important;
+}
 .refresh-popup{
   position:fixed;
   top:14px;
