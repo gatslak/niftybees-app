@@ -310,29 +310,29 @@ body{
 .trend-arrow{
   display:inline-block;
   vertical-align:middle;
-  margin-right:6px;
-  margin-top:-3px;
-  width:30px;
-  height:30px;
+  margin-right:8px;
+  margin-top:-4px;
+  width:44px;
+  height:44px;
 }
 .trend-arrow.up{
   color:var(--bull);
-  animation:trendArrowUp 1.2s ease-in-out infinite;
+  animation:trendArrowUp 1.1s ease-in-out infinite;
 }
 .trend-arrow.down{
   color:var(--bear);
-  animation:trendArrowDown 1.2s ease-in-out infinite;
+  animation:trendArrowDown 1.1s ease-in-out infinite;
 }
 .trend-arrow.flat{
   color:var(--gold);
 }
 @keyframes trendArrowUp{
   0%,100%{ transform:translateY(0); opacity:1; }
-  50%{ transform:translateY(-6px); opacity:0.6; }
+  50%{ transform:translateY(-9px); opacity:0.55; }
 }
 @keyframes trendArrowDown{
   0%,100%{ transform:translateY(0); opacity:1; }
-  50%{ transform:translateY(6px); opacity:0.6; }
+  50%{ transform:translateY(9px); opacity:0.55; }
 }
 .card-sub{font-size:11px;color:var(--muted);margin-top:3px;}
 .manual-row{margin-top:10px;display:flex;gap:8px;}
@@ -1039,10 +1039,10 @@ const PROXIES = [
 // Small animated ▲/▼/● marker: green+bounces-up when positive, red+bounces-
 // down when negative, gold/flat and still when exactly unchanged.
 function trendArrow(pc){
-  const svgOpen = '<svg class="trend-arrow TREND_CLASS" width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">';
-  if(pc > 0) return svgOpen.replace('TREND_CLASS','up') + '<path d="M12 20V6M6 11L12 5L18 11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  if(pc < 0) return svgOpen.replace('TREND_CLASS','down') + '<path d="M12 4V18M6 13L12 19L18 13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-  return svgOpen.replace('TREND_CLASS','flat') + '<line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
+  const svgOpen = '<svg class="trend-arrow TREND_CLASS" width="44" height="44" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">';
+  if(pc > 0) return svgOpen.replace('TREND_CLASS','up') + '<path d="M12 21V5M5 12L12 4L19 12" stroke="currentColor" stroke-width="3.75" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  if(pc < 0) return svgOpen.replace('TREND_CLASS','down') + '<path d="M12 3V19M5 12L12 20L19 12" stroke="currentColor" stroke-width="3.75" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  return svgOpen.replace('TREND_CLASS','flat') + '<line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="3.75" stroke-linecap="round"/></svg>';
 }
 
 function setBadge(id, state, msg){ // live | failed | pending
@@ -1213,11 +1213,21 @@ async function fetchVix(){
 function escNews(s){
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// BBC's "Business" RSS is a general section feed — it mixes real
+// market-moving stories (rates, budgets, earnings) with consumer/lifestyle
+// pieces (restaurant tips, gadget launches, career advice) that have
+// nothing to do with markets. ET Markets is already market-specific by
+// nature, so only the BBC feed needs filtering. We pull a larger pool from
+// BBC and keep only headlines matching finance/market keywords, falling
+// back to the unfiltered pool if nothing matches (so the card never goes
+// empty just because a slow news day used different wording).
+const MARKET_KEYWORDS = /\b(stocks?|shares?|markets?|indices|index|nifty|sensex|nasdaq|dow jones|s&p|ftse|rupee|dollar|inflation|interest rate|rate hike|rate cut|fed|rbi|gdp|econom(y|ic|ics)|budget|borrowing|ipo|debut|earnings|revenue|profits?|tariffs?|trade war|bonds?|yields?|crude|oil price|recession|downturn|investors?|sell-?off|rally|plunge|crash|merger|acquisition|central bank|valued at)\b/i;
+
 async function fetchNews(){
   setBadge('news','pending');
   const feeds = [
-    {url:'http://feeds.bbci.co.uk/news/business/rss.xml', source:'BBC Business', take:2},
-    {url:'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms', source:'ET Markets', take:2}
+    {url:'http://feeds.bbci.co.uk/news/business/rss.xml', source:'BBC Business', take:2, poolSize:12, filterRelevant:true},
+    {url:'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms', source:'ET Markets', take:2, poolSize:2, filterRelevant:false}
   ];
   const parser = new DOMParser();
   const items = [];
@@ -1228,7 +1238,13 @@ async function fetchNews(){
       const text = await r.text();
       const xml = parser.parseFromString(text, 'text/xml');
       if(xml.querySelector('parsererror')) throw new Error('bad XML');
-      Array.from(xml.querySelectorAll('item')).slice(0, f.take).forEach(n=>{
+      const candidates = Array.from(xml.querySelectorAll('item')).slice(0, f.poolSize);
+      let picked = candidates;
+      if(f.filterRelevant){
+        const relevant = candidates.filter(n => MARKET_KEYWORDS.test(n.querySelector('title')?.textContent || ''));
+        picked = relevant.length ? relevant : candidates; // never show nothing over showing off-topic
+      }
+      picked.slice(0, f.take).forEach(n=>{
         const title = n.querySelector('title')?.textContent?.trim();
         const link = n.querySelector('link')?.textContent?.trim();
         if(title) items.push({title, link, source:f.source});
