@@ -565,6 +565,35 @@ body{
   content:"  ·  ";
   color:var(--muted);
 }
+.news-list{
+  list-style:none;
+  margin:8px 0 0;
+  padding:0;
+  font-size:13px;
+  line-height:1.5;
+}
+.news-list li{
+  padding:7px 0;
+  border-top:1px solid var(--line);
+}
+.news-list li:first-child{
+  border-top:none;
+  padding-top:0;
+}
+.news-list a{
+  color:var(--text);
+  text-decoration:none;
+}
+.news-list a:hover{
+  color:var(--gold);
+  text-decoration:underline;
+}
+.news-src{
+  display:block;
+  font-size:10.5px;
+  color:var(--muted);
+  margin-top:2px;
+}
 .calc-readout{
   font-family:Georgia,'Times New Roman',serif;
   font-size:14px;
@@ -731,6 +760,10 @@ summary{
     margin-bottom: 0;
     height: 100%;
   }
+  .signals-grid .news-card{
+    grid-column: 1 / -1;
+    height: auto;
+  }
 
   /* Dow/Nasdaq and Nikkei/HSI read as two distinct bulleted lines on desktop
      instead of being crammed onto one line separated by a dot */
@@ -855,6 +888,13 @@ summary{
 <div class="card" id="card-vix">
   <div class="card-top"><div class="card-name">India VIX</div><span class="badge pending" id="badge-vix">pending</span></div>
   <div class="card-value" id="val-vix">--</div>
+</div>
+
+<div class="section-title">Market-Moving Headlines</div>
+<div class="card news-card" id="card-news">
+  <div class="card-top"><div class="card-name">World &amp; Markets News</div><span class="badge pending" id="badge-news">pending</span></div>
+  <div id="val-news">Not run yet</div>
+  <div class="card-sub" id="sub-news">Top headlines from BBC Business and Economic Times Markets</div>
 </div>
 
 </div>
@@ -1069,14 +1109,20 @@ async function fetchPreopen(){
   try{
     const r = await fetchViaProxy('https://www.nseindia.com/api/market-data-pre-open?key=NIFTY');
     const j = await r.json();
-    const row = (j.data||[]).find(x=>x.symbol==='NIFTY 50');
-    if(!row) throw new Error('no index row in response');
-    const pc = row.pChange;
+    // The Nifty 50 index itself is never a row inside j.data — that array is
+    // only the 50 individual constituent stocks. NSE reports the index's own
+    // pre-open change in a separate top-level "niftyPreopenStatus" object.
+    // Looking for the index inside j.data (the old code) always threw "no
+    // index row in response", which is why this card never once loaded.
+    const row = j.niftyPreopenStatus;
+    if(!row || row.pChange===undefined || row.pChange===null) throw new Error('no index row in response');
+    const pc = parseFloat(row.pChange);
     data.preopen = pc;
     document.getElementById('val-preopen').textContent = (pc>0?'+':'')+pc.toFixed(2)+'%';
     document.getElementById('val-preopen').className = 'card-value ' + (pc>0?'bull':pc<0?'bear':'');
     renderBreadth(j.advances, j.declines, j.unchanged);
-    setBadge('preopen','live', 'Nifty 50 pre-open indicative move');
+    const windowOpen = String(row.status||'').toUpperCase()==='OPEN';
+    setBadge('preopen','live', windowOpen ? 'Nifty 50 pre-open indicative move' : 'Last pre-open reading — window is closed now (~9:00–9:08 AM IST)');
   }catch(e){
     document.getElementById('breadth-box').style.display = 'none';
     setBadge('preopen','failed', 'Blocked/failed ('+e.message+')');
@@ -1123,6 +1169,44 @@ async function fetchVix(){
   }catch(e){
     setBadge('vix','failed', e.message);
   }
+}
+// ---------------- Market-moving headlines (RSS) ----------------
+// Informational only — not part of the weighted bias-lean score, so it's
+// deliberately left out of WEIGHTS/labels/computeScore below.
+function escNews(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+async function fetchNews(){
+  setBadge('news','pending');
+  const feeds = [
+    {url:'http://feeds.bbci.co.uk/news/business/rss.xml', source:'BBC Business', take:2},
+    {url:'https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms', source:'ET Markets', take:2}
+  ];
+  const parser = new DOMParser();
+  const items = [];
+  let anyFeedFailed = false;
+  for(const f of feeds){
+    try{
+      const r = await fetchViaProxy(f.url);
+      const text = await r.text();
+      const xml = parser.parseFromString(text, 'text/xml');
+      if(xml.querySelector('parsererror')) throw new Error('bad XML');
+      Array.from(xml.querySelectorAll('item')).slice(0, f.take).forEach(n=>{
+        const title = n.querySelector('title')?.textContent?.trim();
+        const link = n.querySelector('link')?.textContent?.trim();
+        if(title) items.push({title, link, source:f.source});
+      });
+    }catch(e){ anyFeedFailed = true; }
+  }
+  if(!items.length){
+    document.getElementById('val-news').textContent = 'Headlines unavailable right now';
+    setBadge('news','failed', 'All news sources failed to load');
+    return;
+  }
+  document.getElementById('val-news').innerHTML = '<ul class="news-list">' +
+    items.map(it => '<li>' + (it.link ? `<a href="${escNews(it.link)}" target="_blank" rel="noopener noreferrer">${escNews(it.title)}</a>` : escNews(it.title)) + `<span class="news-src">${escNews(it.source)}</span></li>`).join('') +
+    '</ul>';
+  setBadge('news','live', anyFeedFailed ? 'One source failed — showing what loaded' : 'Updates each refresh, not investment advice');
 }
 // ---------------- Global cues via Yahoo Finance ----------------
 function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
@@ -1735,7 +1819,7 @@ async function runAll(){
     // failing while single-request cards succeeded. A short gap between
     // each keeps every source happy; total cycle still well under the
     // 60s refresh interval.
-    const tasks = [fetchNiftybeesPrice, fetchGift, fetchPreopen, fetchVix, fetchUS, fetchAsia, fetchFx];
+    const tasks = [fetchNiftybeesPrice, fetchGift, fetchPreopen, fetchVix, fetchUS, fetchAsia, fetchFx, fetchNews];
     for(const task of tasks){
       await task().catch(()=>{}); // individual failures already surface in their own card
       await sleep(250);
