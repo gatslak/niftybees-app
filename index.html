@@ -309,8 +309,11 @@ body{
 .card-value.flat{color:var(--gold);}
 .trend-arrow{
   display:inline-block;
-  margin-right:5px;
-  font-size:0.8em;
+  vertical-align:middle;
+  margin-right:6px;
+  margin-top:-3px;
+  width:30px;
+  height:30px;
 }
 .trend-arrow.up{
   color:var(--bull);
@@ -325,11 +328,11 @@ body{
 }
 @keyframes trendArrowUp{
   0%,100%{ transform:translateY(0); opacity:1; }
-  50%{ transform:translateY(-4px); opacity:0.6; }
+  50%{ transform:translateY(-6px); opacity:0.6; }
 }
 @keyframes trendArrowDown{
   0%,100%{ transform:translateY(0); opacity:1; }
-  50%{ transform:translateY(4px); opacity:0.6; }
+  50%{ transform:translateY(6px); opacity:0.6; }
 }
 .card-sub{font-size:11px;color:var(--muted);margin-top:3px;}
 .manual-row{margin-top:10px;display:flex;gap:8px;}
@@ -1036,9 +1039,10 @@ const PROXIES = [
 // Small animated ▲/▼/● marker: green+bounces-up when positive, red+bounces-
 // down when negative, gold/flat and still when exactly unchanged.
 function trendArrow(pc){
-  if(pc > 0) return '<span class="trend-arrow up">▲</span>';
-  if(pc < 0) return '<span class="trend-arrow down">▼</span>';
-  return '<span class="trend-arrow flat">●</span>';
+  const svgOpen = '<svg class="trend-arrow TREND_CLASS" width="30" height="30" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">';
+  if(pc > 0) return svgOpen.replace('TREND_CLASS','up') + '<path d="M12 20V6M6 11L12 5L18 11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  if(pc < 0) return svgOpen.replace('TREND_CLASS','down') + '<path d="M12 4V18M6 13L12 19L18 13" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  return svgOpen.replace('TREND_CLASS','flat') + '<line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>';
 }
 
 function setBadge(id, state, msg){ // live | failed | pending
