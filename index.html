@@ -31,20 +31,15 @@ body{
   margin:0 auto;
   -webkit-font-smoothing:antialiased;
 }
-/* On WordPress this page is wrapped in the theme's own block-template
-   containers, which add their own width cap and padding on top of the
-   rules above (a body max-width of ~1180px on desktop, plus 30px of
-   "global padding" on .entry-content at every size) — stacking with our
-   own padding and leaving noticeably less usable width than the same
-   page on GitHub Pages, which has no such wrapper. These overrides only
-   match the WordPress body class for this page template, so they are a
-   no-op on GitHub Pages. */
-body.page-template-nifty-app-blank{
-  max-width:520px !important;
-  padding:20px 16px 48px !important;
-  margin:0 auto !important;
-}
-body.page-template-nifty-app-blank .entry-content{
+/* On WordPress, Gutenberg wraps this page's content in a
+   .entry-content element carrying the theme's "global padding" (30px a
+   side, at every screen size), stacking on top of the app's own body
+   padding above and leaving noticeably less usable width than the same
+   page on GitHub Pages, which has no such wrapper. This selector only
+   matches on WordPress (the block editor's own classes), so it's a
+   no-op on GitHub Pages. The app's own body{} and @media(min-width:860px)
+   rules above are left untouched so desktop widening still works. */
+.entry-content.wp-block-post-content{
   padding-left:0 !important;
   padding-right:0 !important;
   max-width:none !important;
