@@ -306,6 +306,31 @@ body{
 }
 .card-value.bull{color:var(--bull);}
 .card-value.bear{color:var(--bear);}
+.card-value.flat{color:var(--gold);}
+.trend-arrow{
+  display:inline-block;
+  margin-right:5px;
+  font-size:0.8em;
+}
+.trend-arrow.up{
+  color:var(--bull);
+  animation:trendArrowUp 1.2s ease-in-out infinite;
+}
+.trend-arrow.down{
+  color:var(--bear);
+  animation:trendArrowDown 1.2s ease-in-out infinite;
+}
+.trend-arrow.flat{
+  color:var(--gold);
+}
+@keyframes trendArrowUp{
+  0%,100%{ transform:translateY(0); opacity:1; }
+  50%{ transform:translateY(-4px); opacity:0.6; }
+}
+@keyframes trendArrowDown{
+  0%,100%{ transform:translateY(0); opacity:1; }
+  50%{ transform:translateY(4px); opacity:0.6; }
+}
 .card-sub{font-size:11px;color:var(--muted);margin-top:3px;}
 .manual-row{margin-top:10px;display:flex;gap:8px;}
 .manual-row input{
@@ -1008,6 +1033,14 @@ const PROXIES = [
   url => 'https://cors.x2u.in/' + url,
 ];
 
+// Small animated ▲/▼/● marker: green+bounces-up when positive, red+bounces-
+// down when negative, gold/flat and still when exactly unchanged.
+function trendArrow(pc){
+  if(pc > 0) return '<span class="trend-arrow up">▲</span>';
+  if(pc < 0) return '<span class="trend-arrow down">▼</span>';
+  return '<span class="trend-arrow flat">●</span>';
+}
+
 function setBadge(id, state, msg){ // live | failed | pending
   const el = document.getElementById('badge-'+id);
   el.className = 'badge ' + state;
@@ -1118,8 +1151,8 @@ async function fetchPreopen(){
     if(!row || row.pChange===undefined || row.pChange===null) throw new Error('no index row in response');
     const pc = parseFloat(row.pChange);
     data.preopen = pc;
-    document.getElementById('val-preopen').textContent = (pc>0?'+':'')+pc.toFixed(2)+'%';
-    document.getElementById('val-preopen').className = 'card-value ' + (pc>0?'bull':pc<0?'bear':'');
+    document.getElementById('val-preopen').innerHTML = trendArrow(pc) + (pc>0?'+':'')+pc.toFixed(2)+'%';
+    document.getElementById('val-preopen').className = 'card-value ' + (pc>0?'bull':pc<0?'bear':'flat');
     renderBreadth(j.advances, j.declines, j.unchanged);
     const windowOpen = String(row.status||'').toUpperCase()==='OPEN';
     setBadge('preopen','live', windowOpen ? 'Nifty 50 pre-open indicative move' : 'Last pre-open reading — window is closed now (~9:00–9:08 AM IST)');
