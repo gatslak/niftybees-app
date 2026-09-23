@@ -1786,8 +1786,8 @@ function parseOrderScreenshotText(text){
 
   if(orders.length === 0){
     const qtyMatch = cleaned.match(/qty\.?\s*[:\-]?\s*([\d,]{1,6})/i) || cleaned.match(/quantity\.?\s*[:\-]?\s*([\d,]{1,6})/i);
-    const priceMatch = cleaned.match(/avg\.?\s*(?:trade\s*)?price\.?\s*[:\-]?\s*₹?\s*([\d,]+\.?\d{0,2})/i)
-                     || cleaned.match(/\bprice\.?\s*[:\-]?\s*₹?\s*([\d,]+\.?\d{0,2})/i);
+    const priceMatch = cleaned.match(/avg\.?\s*(?:trade\s*)?price\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
+                     || cleaned.match(/\bprice\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i);
     if(qtyMatch && priceMatch){
       const qty = parseInt(qtyMatch[1].replace(/,/g, ''), 10);
       const price = parseFloat(priceMatch[1].replace(/,/g, ''));
