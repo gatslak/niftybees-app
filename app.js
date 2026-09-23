@@ -423,6 +423,146 @@ function computeBreakevenExitPrice(isLong, totalUnits, totalValue, entryChargesT
   return (lo+hi)/2;
 }
 
+// Finds the exit price at which net P&L (after all charges, taxes, and MTF
+// interest if applicable) equals a TARGET profit — expressed as a percentage
+// of the capital actually put in (unleveraged, what you typed in). Same
+// bisection approach as computeBreakevenExitPrice, just solving for a
+// non-zero target instead of zero.
+function computeExitPriceForTargetPct(isLong, totalUnits, totalValue, entryChargesTotal, mtfInterest, brokerKey, isIntraday, capital, targetPct){
+  if(!totalUnits || totalUnits<=0 || !totalValue || !capital || !targetPct) return 0;
+  const targetProfit = capital*(targetPct/100);
+  const exitIsBuy = !isLong;
+  function netPnlAt(exitPrice){
+    const exitValue = totalUnits*exitPrice;
+    const exitCharges = legBreakdown(exitValue, exitIsBuy, brokerKey, isIntraday).total;
+    const grossPnl = isLong ? (exitValue-totalValue) : (totalValue-exitValue);
+    return grossPnl - entryChargesTotal - exitCharges - mtfInterest;
+  }
+  const avg = totalValue/totalUnits;
+  let lo, hi;
+  if(isLong){
+    lo = avg; hi = avg*3;
+    let tries = 0;
+    while(netPnlAt(hi) < targetProfit && tries < 60){ hi *= 1.5; tries++; }
+  } else {
+    lo = avg*0.001; hi = avg;
+    let tries = 0;
+    while(netPnlAt(lo) < targetProfit && tries < 60){ lo *= 0.5; tries++; }
+  }
+  for(let i=0; i<60; i++){
+    const mid = (lo+hi)/2;
+    const val = netPnlAt(mid);
+    if(isLong){
+      if(val < targetProfit) lo = mid; else hi = mid;
+    } else {
+      if(val < targetProfit) hi = mid; else lo = mid;
+    }
+  }
+  return (lo+hi)/2;
+}
+
+// ---------------- order screenshot upload / OCR ----------------
+// Heuristic parser over raw OCR text (Tesseract output is noisy — no
+// reliable table structure survives). Strategy: scan line by line for rows
+// that look like an order (mention NIFTYBEES, or a BUY/SELL keyword) and
+// contain at least two numbers; pick the number in NIFTYBEES's plausible
+// price range (₹50–₹2000) as price, and the smallest remaining whole number
+// as quantity. Falls back to a whole-text "Qty:" / "Avg Price:" label scan
+// if no row-level match is found. Returns up to 5 orders (matches the app's
+// slot limit).
+function parseOrderScreenshotText(text){
+  const cleaned = (text || '').replace(/[|]/g, ' ');
+  const lines = cleaned.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  const orders = [];
+  let anyBuy = false, anySell = false;
+
+  for(const line of lines){
+    const hasBuy = /\bBUY\b/i.test(line);
+    const hasSell = /\bSELL\b/i.test(line);
+    if(hasBuy) anyBuy = true;
+    if(hasSell) anySell = true;
+    const mentionsSymbol = /niftybees/i.test(line);
+    if(!mentionsSymbol && !hasBuy && !hasSell) continue;
+
+    const nums = (line.match(/[0-9][0-9,]*\.?[0-9]*/g) || [])
+      .map(s => parseFloat(s.replace(/,/g, '')))
+      .filter(n => !isNaN(n));
+    if(nums.length < 2) continue;
+
+    const priceCandidates = nums.filter(n => n >= 50 && n <= 2000);
+    if(priceCandidates.length === 0) continue;
+    const price = priceCandidates[priceCandidates.length - 1];
+    const qtyCandidates = nums.filter(n => n !== price && Number.isInteger(n) && n > 0 && n < 100000);
+    if(qtyCandidates.length === 0) continue;
+    const qty = qtyCandidates[0];
+
+    orders.push({ qty, price, side: (hasSell && !hasBuy) ? 'sell' : 'buy' });
+    if(orders.length >= 5) break;
+  }
+
+  if(orders.length === 0){
+    const qtyMatch = cleaned.match(/qty\.?\s*[:\-]?\s*([\d,]{1,6})/i) || cleaned.match(/quantity\.?\s*[:\-]?\s*([\d,]{1,6})/i);
+    const priceMatch = cleaned.match(/avg\.?\s*(?:trade\s*)?price\.?\s*[:\-]?\s*₹?\s*([\d,]+\.?\d{0,2})/i)
+                     || cleaned.match(/\bprice\.?\s*[:\-]?\s*₹?\s*([\d,]+\.?\d{0,2})/i);
+    if(qtyMatch && priceMatch){
+      const qty = parseInt(qtyMatch[1].replace(/,/g, ''), 10);
+      const price = parseFloat(priceMatch[1].replace(/,/g, ''));
+      if(qty > 0 && price > 0){
+        orders.push({ qty, price, side: (anySell && !anyBuy) ? 'sell' : 'buy' });
+      }
+    }
+  }
+
+  return orders;
+}
+
+async function handleHoldingsUpload(event){
+  const file = event.target.files && event.target.files[0];
+  if(!file) return;
+  const statusEl = document.getElementById('holdings-upload-status');
+  statusEl.style.display = 'block';
+  statusEl.className = 'upload-status pending';
+  statusEl.textContent = 'Reading screenshot…';
+  showCalcPopup('Reading screenshot…');
+  try{
+    if(typeof Tesseract === 'undefined'){
+      throw new Error('OCR engine failed to load — check your connection and try again, or enter the values manually below.');
+    }
+    const { data: { text } } = await Tesseract.recognize(file, 'eng');
+    showCalcPopup('Calculating…');
+    const orders = parseOrderScreenshotText(text);
+    if(orders.length === 0){
+      statusEl.className = 'upload-status failed';
+      statusEl.textContent = "Couldn't read quantity/price clearly from this screenshot — try a clearer or closer-cropped image, or enter the values manually below.";
+      return;
+    }
+    const sideIsSell = orders[0].side === 'sell';
+    setHoldingsMode(sideIsSell ? 'short' : 'long');
+    const n = Math.min(orders.length, 5);
+    document.getElementById('holdings-slot-count').value = String(n);
+    setHoldingsSlotCount();
+    for(let i=0; i<5; i++){
+      const row = document.querySelector(`.holdings-row[data-slot="${i+1}"]`);
+      if(i < n){
+        row.querySelector('.h-units').value = orders[i].qty;
+        row.querySelector('.h-price').value = orders[i].price;
+      } else {
+        row.querySelector('.h-units').value = '';
+        row.querySelector('.h-price').value = '';
+      }
+    }
+    const summary = orders.map(o => `${o.qty} @ ₹${o.price.toFixed(2)}`).join(', ');
+    statusEl.className = 'upload-status ok';
+    statusEl.textContent = 'Detected from screenshot (' + (sideIsSell?'Sell':'Buy') + '): ' + summary + ' — double-check against your screenshot; the fields below stay editable if anything looks off.';
+    computeHoldings();
+  }catch(e){
+    statusEl.className = 'upload-status failed';
+    statusEl.textContent = 'Could not read this image — ' + e.message;
+  }finally{
+    hideCalcPopup();
+  }
+}
+
 function computeHoldings(){
   const n = parseInt(document.getElementById('holdings-slot-count').value, 10);
   const brokerKey = document.getElementById('holdings-broker').value;
@@ -483,6 +623,9 @@ function computeHoldings(){
   const mtfInterest = isMTF ? borrowed*(mtfRate/100)*(holdDays/365) : 0;
   const dailyInterest = isMTF ? borrowed*(mtfRate/100)/365 : 0;
   const breakevenPrice = computeBreakevenExitPrice(holdingsMode==='long', totalUnits, totalValue, entryTotals.total, mtfInterest, brokerKey, isIntraday);
+  const targetPct = parseFloat(document.getElementById('holdings-target-pct').value);
+  const hasTargetPct = !isNaN(targetPct) && targetPct !== 0;
+  const targetExitPrice = hasTargetPct ? computeExitPriceForTargetPct(holdingsMode==='long', totalUnits, totalValue, entryTotals.total, mtfInterest, brokerKey, isIntraday, capital, targetPct) : 0;
 
   let modeLabel = holdingsMode==='long' ? (holdingsSubMode==='mtf' ? 'Long · MTF (5×)' : holdingsSubMode==='intraday' ? 'Long · Intraday' : 'Long · Delivery') : 'Short · Intraday';
 
@@ -491,6 +634,13 @@ function computeHoldings(){
     <div class="hs-avg">₹${avgPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
     <div class="hs-breakeven">Breakeven exit price${isMTF?' (covers charges + interest)':' (covers charges)'}: <span class="gold">₹${breakevenPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
   `;
+  if(hasTargetPct){
+    if(targetExitPrice > 0){
+      html += `<div class="hs-target-exit">Exit price for ${targetPct>0?'+':''}${targetPct}% net profit (after all fees${isMTF?' + interest':''} &amp; taxes): <span class="grn">₹${targetExitPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>`;
+    } else {
+      html += `<div class="hs-target-exit">Couldn't find a valid exit price for that target — try a smaller percentage.</div>`;
+    }
+  }
 
   if(isMTF){
     html += `
@@ -834,6 +984,21 @@ function showRefreshPopup(){
 }
 function hideRefreshPopup(){
   document.getElementById('refresh-popup').classList.remove('show');
+}
+// Reuses the same spinning-logo popup for the order-screenshot OCR/calc step,
+// just with different text, so it's the same "please wait" visual language
+// as the live-data refresh — then restores the default text on hide.
+function showCalcPopup(text){
+  const popup = document.getElementById('refresh-popup');
+  const span = popup.querySelector('span');
+  if(span) span.textContent = text;
+  popup.classList.add('show');
+}
+function hideCalcPopup(){
+  const popup = document.getElementById('refresh-popup');
+  popup.classList.remove('show');
+  const span = popup.querySelector('span');
+  if(span) span.textContent = 'Refreshing…';
 }
 
 let refreshInProgress = false;
