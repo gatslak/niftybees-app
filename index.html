@@ -1886,6 +1886,12 @@ function processSelectedScreenshot(){
     statusEl.textContent = 'Choose a screenshot first (tap "Choose File" above), then tap this button.';
     return;
   }
+  if(holdingsUploadBusy){
+    statusEl.style.display = 'block';
+    statusEl.className = 'upload-status pending';
+    statusEl.textContent = 'Still working on the previous screenshot — please wait a moment.';
+    return;
+  }
   processHoldingsScreenshot(file);
 }
 
