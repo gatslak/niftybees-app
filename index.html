@@ -264,6 +264,116 @@ body{
   line-height:1.5;
 }
 
+/* ==========================================================
+   30–60 MIN SIGNAL + DAY/WEEK READ
+   Namespaced "pred-" throughout so nothing here collides with the
+   existing card/badge/section-title styles above — it reuses --bg,
+   --surface, --surface-2, --line, --text and --muted from :root,
+   and adds its own brighter signal colors (kept local to this module
+   rather than overwriting the site-wide --bull/--bear used elsewhere).
+   ========================================================== */
+:root{
+  --pred-bull:#20E3A2;
+  --pred-bear:#FF5C4D;
+  --pred-hold:#4FBBFF;
+  --pred-hold-soft:#1A3350;
+  --pred-gold:#F0BB4E;
+  --pred-purple:#B98AFF;
+  --pred-purple-soft:#2A2049;
+}
+.pred-horizon-note{
+  font-size:12px;
+  color:var(--muted);
+  margin:-4px 0 14px 2px;
+}
+.pred-horizon-note strong{ color:var(--text); }
+.pred-signal-card{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:18px;
+  margin-bottom:14px;
+}
+.pred-signal-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:14px;
+}
+.pred-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 16px;
+  border-radius:999px;
+  font-family:Georgia,'Times New Roman',serif;
+  font-size:18px;
+  font-weight:700;
+}
+.pred-chip.buy{ background:rgba(32,227,162,0.20); color:var(--pred-bull); }
+.pred-chip.sell{ background:rgba(255,92,77,0.20); color:var(--pred-bear); }
+.pred-chip.hold{ background:var(--pred-hold-soft); color:var(--pred-hold); }
+.pred-confidence{ text-align:right; }
+.pred-confidence .num{ font-family:Georgia,serif; font-size:20px; font-weight:700; }
+.pred-confidence .lbl{ font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; }
+.pred-price-row{
+  display:flex; justify-content:space-between; align-items:baseline;
+  padding-top:12px; border-top:1px solid var(--line);
+}
+.pred-price-row .px{ font-family:Georgia,serif; font-size:24px; font-weight:600; }
+.pred-price-row .asof{ font-size:11px; color:var(--muted); }
+.pred-range-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:14px; }
+.pred-range-tile{ background:var(--surface-2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
+.pred-range-tile .horizon{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px; }
+.pred-range-tile .band{ font-family:Georgia,serif; font-size:14.5px; font-weight:600; }
+.pred-range-tile .band .sep{ color:var(--muted); font-weight:400; padding:0 4px; }
+.pred-range-tile .mid{ font-size:11.5px; margin-top:5px; font-weight:600; }
+.pred-range-tile .mid.buy{ color:var(--pred-bull); }
+.pred-range-tile .mid.sell{ color:var(--pred-bear); }
+.pred-range-tile .mid.hold{ color:var(--pred-hold); }
+.pred-range-tile .sigma{ font-size:10px; color:var(--text); opacity:0.7; margin-top:4px; }
+.pred-chart-card{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 14px 8px; margin-bottom:14px; }
+.pred-chart-legend{ display:flex; gap:12px; font-size:10.5px; color:var(--muted); margin-bottom:6px; flex-wrap:wrap; }
+.pred-chart-legend .sw{ display:inline-block; width:10px; height:2.5px; margin-right:5px; vertical-align:middle; }
+.pred-chart-legend .sw.dashed{ border-top:2px dashed currentColor; height:0; }
+svg.pred-chart{ width:100%; height:auto; display:block; }
+.pred-breakdown-card{ background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 18px; margin-bottom:14px; }
+.pred-ind-row{ padding:11px 0; border-bottom:1px solid var(--line); }
+.pred-ind-row:last-child{ border-bottom:none; padding-bottom:2px; }
+.pred-ind-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:5px; }
+.pred-ind-name{ font-family:Georgia,serif; font-size:14px; font-weight:600; }
+.pred-ind-weight{ font-size:10px; color:var(--muted); }
+.pred-ind-read{ font-size:12.5px; margin-bottom:7px; }
+.pred-ind-read.buy{ color:var(--pred-bull); }
+.pred-ind-read.sell{ color:var(--pred-bear); }
+.pred-ind-read.hold{ color:var(--pred-hold); }
+.pred-ind-bar-track{ height:6px; background:var(--surface-2); border-radius:4px; position:relative; overflow:hidden; }
+.pred-ind-bar-mid{ position:absolute; left:50%; top:0; bottom:0; width:1px; background:var(--line); }
+.pred-ind-bar-fill{ position:absolute; top:0; bottom:0; border-radius:4px; }
+.pred-ind-bar-fill.buy{ background:var(--pred-bull); }
+.pred-ind-bar-fill.sell{ background:var(--pred-bear); }
+.pred-method-note{ background:var(--surface-2); border:1px solid var(--line); border-radius:14px; padding:14px 16px; font-size:12px; color:var(--text); line-height:1.6; margin-bottom:14px; }
+.pred-method-note strong{ color:var(--pred-gold); }
+.pred-disclaimer{ background:rgba(255,92,77,0.10); border:1px solid rgba(255,92,77,0.4); border-radius:12px; padding:12px 14px; font-size:11.5px; color:var(--text); line-height:1.55; margin-top:12px; }
+.pred-disclaimer strong{ color:var(--pred-bear); }
+
+/* ---- Day/Week read: deliberately purple, its own system ---- */
+.pred-lt-title{ font-family:Georgia,'Times New Roman',serif; font-size:10px; letter-spacing:0.1em; text-transform:uppercase; color:var(--pred-purple); font-weight:700; margin:22px 0 4px 2px; }
+.pred-lt-sub{ font-size:11px; color:var(--muted); margin:0 0 10px 2px; }
+.pred-lt-card{ background:var(--surface); border:1px solid var(--pred-purple-soft); border-radius:16px; padding:14px; margin-bottom:16px; }
+.pred-lt-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.pred-lt-tile{ background:var(--pred-purple-soft); border:1px solid rgba(185,138,255,0.28); border-radius:12px; padding:12px 12px 14px; }
+.pred-lt-tile-name{ font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:7px; }
+.pred-lt-bias{ font-family:Georgia,serif; font-size:16px; font-weight:700; color:var(--pred-purple); margin-bottom:7px; }
+.pred-lt-bias .arrow{ font-size:13px; margin-right:2px; }
+.pred-lt-bar-track{ height:6px; background:rgba(185,138,255,0.15); border-radius:4px; position:relative; overflow:hidden; margin-bottom:9px; }
+.pred-lt-bar-fill{ position:absolute; top:0; bottom:0; left:50%; border-radius:4px; background:var(--pred-purple); }
+.pred-lt-bar-mid{ position:absolute; left:50%; top:0; bottom:0; width:1px; background:rgba(255,255,255,0.25); }
+.pred-lt-rationale{ font-size:11.5px; color:var(--text); line-height:1.5; }
+.pred-lt-spark{ width:100%; height:30px; display:block; margin-top:9px; }
+.pred-lt-note{ font-size:10.5px; color:var(--muted); margin-top:10px; padding-top:9px; border-top:1px solid var(--pred-purple-soft); line-height:1.5; }
+
 /* ---- Refresh button ---- */
 .refresh-btn{
   width:100%;
@@ -945,6 +1055,79 @@ summary{
   <summary>Tune signal weights</summary>
   <div id="weightSliders"></div>
 </details>
+
+<div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+  <span>30–60 Min Signal</span>
+  <span class="badge pending" id="badge-pred">pending</span>
+</div>
+<div class="pred-horizon-note" id="sub-pred">Reads the last <strong>30 minutes</strong> of price + volume buildup to project the next <strong>30–60 minutes</strong> — not a 5–15 minute reflex.</div>
+
+<div class="pred-signal-card">
+  <div class="pred-signal-top">
+    <span class="pred-chip" id="predChip">—</span>
+    <div class="pred-confidence">
+      <div class="num" id="predConf">--</div>
+      <div class="lbl">confidence</div>
+    </div>
+  </div>
+  <div class="pred-price-row">
+    <span class="px" id="predPx">--</span>
+    <span class="asof" id="predAsOf">--</span>
+  </div>
+  <div class="pred-range-grid">
+    <div class="pred-range-tile">
+      <div class="horizon">Projected ~30 min</div>
+      <div class="band" id="predBand30">--</div>
+      <div class="mid" id="predMid30"></div>
+      <div class="sigma">68% statistical band around the projected move</div>
+    </div>
+    <div class="pred-range-tile">
+      <div class="horizon">Projected ~60 min</div>
+      <div class="band" id="predBand60">--</div>
+      <div class="mid" id="predMid60"></div>
+      <div class="sigma">68% statistical band around the projected move</div>
+    </div>
+  </div>
+</div>
+
+<div class="pred-chart-card">
+  <div class="pred-chart-legend">
+    <span><span class="sw" style="background:var(--text);"></span>Price</span>
+    <span><span class="sw" style="background:var(--pred-gold);"></span>EMA 9</span>
+    <span><span class="sw" style="background:var(--pred-hold);"></span>EMA 21</span>
+    <span><span class="sw dashed"></span>Projected swing</span>
+  </div>
+  <svg class="pred-chart" id="predChartSvg" viewBox="0 0 480 228" preserveAspectRatio="none"></svg>
+</div>
+
+<div class="pred-breakdown-card" id="predBreakdown"></div>
+
+<div class="pred-method-note">
+  Built for a <strong>30–60 minute</strong> horizon: trend buildup (35%) and volume buildup (30%) over the last 30 minutes, EMA9/21 gap acceleration (25%), and an RSI(14) guard (10%) that trims the score back when price is already stretched. The 30/60-min band is that trend projected forward and damped — not extrapolated in a straight line — then widened by recent volatility.
+  <div class="pred-disclaimer"><strong>Not financial advice.</strong> A statistical read of public price and volume action, not a guarantee of what NIFTYBEES does next. Size and time any trade to your own risk — treat this as one input, not a signal to act on alone.</div>
+</div>
+
+<div class="pred-lt-title">Longer-Term Read — Day &amp; Week</div>
+<div class="pred-lt-sub">A separate, slower signal from daily closes — for context, not the 30–60 min call above.</div>
+<div class="pred-lt-card">
+  <div class="pred-lt-grid">
+    <div class="pred-lt-tile">
+      <div class="pred-lt-tile-name">Today</div>
+      <div class="pred-lt-bias" id="predDayBias">--</div>
+      <div class="pred-lt-bar-track"><div class="pred-lt-bar-mid"></div><div class="pred-lt-bar-fill" id="predDayBar"></div></div>
+      <div class="pred-lt-rationale" id="predDayRationale">--</div>
+      <svg class="pred-lt-spark" id="predDaySpark" viewBox="0 0 200 30" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="pred-lt-tile">
+      <div class="pred-lt-tile-name">This Week</div>
+      <div class="pred-lt-bias" id="predWeekBias">--</div>
+      <div class="pred-lt-bar-track"><div class="pred-lt-bar-mid"></div><div class="pred-lt-bar-fill" id="predWeekBar"></div></div>
+      <div class="pred-lt-rationale" id="predWeekRationale">--</div>
+      <svg class="pred-lt-spark" id="predWeekSpark" viewBox="0 0 200 30" preserveAspectRatio="none"></svg>
+    </div>
+  </div>
+  <div class="pred-lt-note">Reads daily closes — price vs. its 20/50-day averages, the 5-day trend, and daily RSI(14) — not the 5-minute series above.</div>
+</div>
 
 <div class="calculator-row">
 <div class="section-title">Return Calculator — My NIFTYBEES Holdings</div>
@@ -1886,7 +2069,7 @@ async function runAll(){
     // failing while single-request cards succeeded. A short gap between
     // each keeps every source happy; total cycle still well under the
     // 60s refresh interval.
-    const tasks = [fetchNiftybeesPrice, fetchGift, fetchPreopen, fetchVix, fetchUS, fetchAsia, fetchFx, fetchNews];
+    const tasks = [fetchNiftybeesPrice, fetchGift, fetchPreopen, fetchVix, fetchUS, fetchAsia, fetchFx, fetchNews, fetchAndRenderPrediction];
     for(const task of tasks){
       await task().catch(()=>{}); // individual failures already surface in their own card
       await sleep(250);
@@ -1897,6 +2080,285 @@ async function runAll(){
     btn.disabled = false; btn.textContent = 'Refresh all sources';
     setTimeout(hideRefreshPopup, 900); // keep it visible briefly even on a very fast refresh
     refreshInProgress = false;
+  }
+}
+
+// =========================================================
+// 30–60 MIN SIGNAL + DAY/WEEK READ
+// Reuses fetchViaProxy()/PRIMARY_PROXY (same Yahoo pipeline as the price
+// card above) against 5-minute intraday candles and a 3-month daily
+// history, instead of the daily-only chart the price card uses.
+// =========================================================
+function predEma(arr, period){
+  const k = 2/(period+1);
+  const out = [arr[0]];
+  for(let i=1;i<arr.length;i++) out.push(arr[i]*k + out[i-1]*(1-k));
+  return out;
+}
+function predRsi(arr, period){
+  const p = Math.min(period, arr.length-1);
+  let gains=0, losses=0;
+  for(let i=arr.length-p; i<arr.length; i++){
+    const d = arr[i]-arr[i-1];
+    if(d>=0) gains+=d; else losses-=d;
+  }
+  const avgG = gains/p, avgL = losses/p;
+  if(avgL===0) return 100;
+  return 100 - (100/(1+avgG/avgL));
+}
+function predStdevReturns(arr, n){
+  const nn = Math.min(n, arr.length-1);
+  const rets=[];
+  for(let i=arr.length-nn; i<arr.length; i++) rets.push(Math.log(arr[i]/arr[i-1]));
+  const mean = rets.reduce((a,b)=>a+b,0)/rets.length;
+  const variance = rets.reduce((a,b)=>a+(b-mean)**2,0)/rets.length;
+  return Math.sqrt(variance);
+}
+function predClip(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+function predSma(arr,n){ return arr.slice(-n).reduce((a,b)=>a+b,0)/n; }
+
+async function fetchIntradaySeries(symbol){
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=5m&range=1d`;
+  const r = await fetchViaProxy(url);
+  const j = await r.json();
+  if(!j || !j.chart || !Array.isArray(j.chart.result) || !j.chart.result[0]) throw new Error('no intraday data');
+  const q = j.chart.result[0].indicators && j.chart.result[0].indicators.quote && j.chart.result[0].indicators.quote[0];
+  if(!q || !q.close) throw new Error('malformed intraday response');
+  const closes=[], vols=[];
+  for(let i=0;i<q.close.length;i++){
+    if(q.close[i]!=null && q.volume[i]!=null){ closes.push(q.close[i]); vols.push(q.volume[i]); }
+  }
+  if(closes.length < 8) throw new Error('too few intraday bars yet (' + closes.length + ') — check back after market open');
+  return { closes, vols };
+}
+async function fetchDailySeries(symbol){
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=3mo`;
+  const r = await fetchViaProxy(url);
+  const j = await r.json();
+  if(!j || !j.chart || !Array.isArray(j.chart.result) || !j.chart.result[0]) throw new Error('no daily history');
+  const q = j.chart.result[0].indicators && j.chart.result[0].indicators.quote && j.chart.result[0].indicators.quote[0];
+  const closes = (q && q.close || []).filter(x=>x!=null);
+  if(closes.length < 25) throw new Error('too few daily bars (' + closes.length + ')');
+  return closes;
+}
+
+const predFmt = v => '₹' + v.toLocaleString('en-IN',{minimumFractionDigits:2, maximumFractionDigits:2});
+
+function renderShortTermSignal(closes, vols){
+  const BAR_MIN = 5, LOOKBACK_BARS = Math.min(6, Math.floor(closes.length/2));
+  const ema9 = predEma(closes,9), ema21 = predEma(closes,21);
+  const last = closes[closes.length-1];
+  const rsi14 = predRsi(closes,14);
+  const lastIdx = closes.length-1, backIdx = lastIdx-LOOKBACK_BARS;
+
+  const trendPct30 = (closes[lastIdx]-closes[backIdx])/closes[backIdx]*100;
+  const trendScore = predClip(trendPct30/0.6,-1,1)*100;
+
+  const volWindow = Math.min(LOOKBACK_BARS, Math.floor(vols.length/2));
+  const recentAvgVol = vols.slice(-volWindow).reduce((a,b)=>a+b,0)/volWindow;
+  const priorAvgVol = vols.slice(-2*volWindow,-volWindow).reduce((a,b)=>a+b,0)/(volWindow||1);
+  const volBuildRatio = priorAvgVol ? recentAvgVol/priorAvgVol : 1;
+  const trendSign = Math.sign(trendScore) || 1;
+  const volScore = predClip((volBuildRatio-1)/0.35,-1,1)*100*trendSign;
+
+  const gapNow = ema9[lastIdx]-ema21[lastIdx];
+  const gapPrev = ema9[backIdx]-ema21[backIdx];
+  const gapChangePct = (gapNow-gapPrev)/closes[backIdx]*100;
+  const accelScore = predClip(gapChangePct/0.25,-1,1)*100;
+
+  const rsiScore = rsi14>50 ? -predClip((rsi14-50)/25,0,1)*100 : predClip((50-rsi14)/25,0,1)*100;
+
+  const composite = 0.35*trendScore + 0.30*volScore + 0.25*accelScore + 0.10*rsiScore;
+  let signal, signalClass;
+  if(composite>=30){ signal='BUY'; signalClass='buy'; }
+  else if(composite<=-30){ signal='SELL'; signalClass='sell'; }
+  else { signal='HOLD'; signalClass='hold'; }
+
+  const agree = [trendScore,volScore,accelScore].filter(s=>Math.sign(s)===Math.sign(composite) && Math.abs(s)>10).length;
+  const confidence = Math.round(predClip(46 + Math.abs(composite)*0.45 + agree*6, 30, 96));
+
+  const DRIFT_DAMP = 0.55;
+  const driftPerMinLog = Math.log(closes[lastIdx]/closes[backIdx]) / (LOOKBACK_BARS*BAR_MIN) * DRIFT_DAMP;
+  const sigma5 = predStdevReturns(closes,20);
+  function project(horizonMin){
+    const mid = last*Math.exp(driftPerMinLog*horizonMin);
+    const sigma = sigma5*Math.sqrt(horizonMin/BAR_MIN);
+    return { mid, lo: mid*Math.exp(-sigma), hi: mid*Math.exp(sigma) };
+  }
+  const p30 = project(30), p60 = project(60);
+
+  document.getElementById('predChip').className = 'pred-chip '+signalClass;
+  const arrow = signal==='BUY' ? '▲' : signal==='SELL' ? '▼' : '—';
+  document.getElementById('predChip').innerHTML = '<span>'+arrow+'</span> '+signal;
+  document.getElementById('predConf').textContent = confidence+'%';
+  document.getElementById('predPx').textContent = predFmt(last);
+  document.getElementById('predAsOf').textContent = 'last 5-min bar · ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
+
+  function fillTile(bandId, midId, p){
+    const change = (p.mid-last)/last*100;
+    document.getElementById(bandId).innerHTML = predFmt(p.lo)+'<span class="sep">–</span>'+predFmt(p.hi);
+    const midEl = document.getElementById(midId);
+    midEl.className = 'mid '+signalClass;
+    midEl.textContent = '→ ' + predFmt(p.mid) + ' (' + (change>=0?'+':'') + change.toFixed(2) + '%) projected';
+  }
+  fillTile('predBand30','predMid30',p30);
+  fillTile('predBand60','predMid60',p60);
+
+  function barFill(score){
+    const w = Math.min(50, Math.abs(score)/2);
+    const cls = score>=0 ? 'buy' : 'sell';
+    const left = score>=0 ? '50%' : (50-w)+'%';
+    return '<div class="pred-ind-bar-fill '+cls+'" style="left:'+left+'; width:'+w+'%;"></div>';
+  }
+  function readLabel(score, kind){
+    const dir = score>10 ? 'buy' : score<-10 ? 'sell' : 'hold';
+    const texts = {
+      trend:{buy:'Sustained rise over the last 30 min', sell:'Sustained fall over the last 30 min', hold:'Roughly flat over the last 30 min'},
+      vol:{buy:'Volume building behind the move', sell:'Volume building behind the move', hold:'Volume steady, no real buildup'},
+      accel:{buy:'EMA gap widening — move still building', sell:'EMA gap widening — move still building', hold:'EMA gap flat — momentum not building'},
+      rsi:{buy:'Oversold — guard easing toward buy', sell:'Overbought — guard trimming toward sell', hold:'Neutral zone, no extreme'}
+    };
+    return {dir, text:texts[kind][dir]};
+  }
+  const rows = [
+    {name:'Trend buildup (30 min)', weight:'35% weight', score:trendScore, kind:'trend', extra:(trendPct30>=0?'+':'')+trendPct30.toFixed(2)+'% / 30 min'},
+    {name:'Volume buildup', weight:'30% weight', score:volScore, kind:'vol', extra:volBuildRatio.toFixed(2)+'× prior 30 min'},
+    {name:'Trend acceleration', weight:'25% weight', score:accelScore, kind:'accel', extra:(gapChangePct>=0?'+':'')+gapChangePct.toFixed(3)+'% gap Δ'},
+    {name:'RSI guard', weight:'10% weight', score:rsiScore, kind:'rsi', extra:'RSI '+rsi14.toFixed(0)}
+  ];
+  document.getElementById('predBreakdown').innerHTML = rows.map(r=>{
+    const rl = readLabel(r.score, r.kind);
+    return '<div class="pred-ind-row"><div class="pred-ind-head"><span class="pred-ind-name">'+r.name+'</span><span class="pred-ind-weight">'+r.weight+' · '+r.extra+'</span></div>'
+      + '<div class="pred-ind-read '+rl.dir+'">'+rl.text+'</div>'
+      + '<div class="pred-ind-bar-track"><div class="pred-ind-bar-mid"></div>'+barFill(r.score)+'</div></div>';
+  }).join('');
+
+  // ---- chart: history + projection cone with BUY/SELL markers ----
+  const svg = document.getElementById('predChartSvg');
+  const W=480, H=228, padL=44, padR=10, padT=26, padB=20;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const totalSlots = closes.length+12;
+  const allVals = closes.concat(ema9).concat(ema21).concat([p30.lo,p30.hi,p30.mid,p60.lo,p60.hi,p60.mid,last]);
+  const minV=Math.min(...allVals), maxV=Math.max(...allVals);
+  const pad=(maxV-minV)*0.08 || 0.5;
+  const lo=minV-pad, hi=maxV+pad;
+  const x = i => padL + (i/(totalSlots-1))*plotW;
+  const y = v => padT + (1-(v-lo)/(hi-lo))*plotH;
+  const pathOf = arr => arr.map((v,i)=>(i===0?'M':'L')+x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ');
+
+  let svgContent='';
+  for(let t=0;t<=3;t++){
+    const v = lo+(hi-lo)*t/3, yy=y(v);
+    svgContent += '<line x1="'+padL+'" y1="'+yy.toFixed(1)+'" x2="'+(W-padR)+'" y2="'+yy.toFixed(1)+'" stroke="#233257" stroke-width="1" />';
+    svgContent += '<text x="4" y="'+(yy+3).toFixed(1)+'" font-size="9.5" fill="#7C8AA5" font-family="Georgia,serif">'+v.toFixed(1)+'</text>';
+  }
+  const nowX = x(closes.length-1);
+  svgContent += '<line x1="'+nowX.toFixed(1)+'" y1="'+padT+'" x2="'+nowX.toFixed(1)+'" y2="'+(H-padB)+'" stroke="#233257" stroke-width="1" stroke-dasharray="2,3" />';
+  const histLabelIdx = [0, Math.floor(closes.length*0.55), closes.length-1];
+  histLabelIdx.forEach(i=>{
+    const minsAgo=(closes.length-1-i)*BAR_MIN;
+    const lbl = minsAgo===0 ? 'now' : '-'+minsAgo+'m';
+    svgContent += '<text x="'+(x(i)-10).toFixed(1)+'" y="'+(H-4)+'" font-size="9.5" fill="#7C8AA5" font-family="Georgia,serif">'+lbl+'</text>';
+  });
+  svgContent += '<text x="'+(x(closes.length-1+6)-10).toFixed(1)+'" y="'+(H-4)+'" font-size="9.5" fill="#7C8AA5" font-family="Georgia,serif">+30m</text>';
+  svgContent += '<text x="'+(x(closes.length-1+12)-10).toFixed(1)+'" y="'+(H-4)+'" font-size="9.5" fill="#7C8AA5" font-family="Georgia,serif">+60m</text>';
+
+  const x30=x(closes.length-1+6), x60=x(closes.length-1+12);
+  const coneColor = signal==='BUY' ? '#20E3A2' : signal==='SELL' ? '#FF5C4D' : '#4FBBFF';
+  const conePath = 'M '+nowX.toFixed(1)+','+y(last).toFixed(1)
+    + ' L '+x30.toFixed(1)+','+y(p30.hi).toFixed(1)
+    + ' L '+x60.toFixed(1)+','+y(p60.hi).toFixed(1)
+    + ' L '+x60.toFixed(1)+','+y(p60.lo).toFixed(1)
+    + ' L '+x30.toFixed(1)+','+y(p30.lo).toFixed(1)+' Z';
+  svgContent += '<path d="'+conePath+'" fill="'+coneColor+'" opacity="0.16" />';
+  const midPath = 'M '+nowX.toFixed(1)+','+y(last).toFixed(1)
+    + ' L '+x30.toFixed(1)+','+y(p30.mid).toFixed(1)
+    + ' L '+x60.toFixed(1)+','+y(p60.mid).toFixed(1);
+  svgContent += '<path d="'+midPath+'" fill="none" stroke="'+coneColor+'" stroke-width="2" stroke-dasharray="5,4" />';
+
+  svgContent += '<path d="'+pathOf(ema21)+'" fill="none" stroke="#4FBBFF" stroke-width="1.6" opacity="0.95" />';
+  svgContent += '<path d="'+pathOf(ema9)+'" fill="none" stroke="#F0BB4E" stroke-width="1.6" />';
+  svgContent += '<path d="'+pathOf(closes)+'" fill="none" stroke="#E8ECF4" stroke-width="2" />';
+
+  const arrowGlyph = signal==='BUY' ? '▲' : signal==='SELL' ? '▼' : '—';
+  function marker(cx, cy, label, big){
+    const r = big ? 9 : 7;
+    let shape;
+    if(signal==='HOLD'){
+      shape = '<rect x="'+(cx-r).toFixed(1)+'" y="'+(cy-2.5).toFixed(1)+'" width="'+(r*2).toFixed(1)+'" height="5" rx="2" fill="'+coneColor+'" stroke="#0B1120" stroke-width="1.5" />';
+    } else if(signal==='BUY'){
+      shape = '<polygon points="'+cx.toFixed(1)+','+(cy-r).toFixed(1)+' '+(cx-r).toFixed(1)+','+(cy+r*0.7).toFixed(1)+' '+(cx+r).toFixed(1)+','+(cy+r*0.7).toFixed(1)+'" fill="'+coneColor+'" stroke="#0B1120" stroke-width="1.5" stroke-linejoin="round" />';
+    } else {
+      shape = '<polygon points="'+cx.toFixed(1)+','+(cy+r).toFixed(1)+' '+(cx-r).toFixed(1)+','+(cy-r*0.7).toFixed(1)+' '+(cx+r).toFixed(1)+','+(cy-r*0.7).toFixed(1)+'" fill="'+coneColor+'" stroke="#0B1120" stroke-width="1.5" stroke-linejoin="round" />';
+    }
+    const labelY = signal==='SELL' ? cy+r+12 : cy-r-6;
+    const tag = label ? '<text x="'+cx.toFixed(1)+'" y="'+labelY.toFixed(1)+'" text-anchor="middle" font-family="Georgia,serif" font-weight="700" font-size="'+(big?11:9.5)+'" fill="'+coneColor+'">'+label+'</text>' : '';
+    return shape+tag;
+  }
+  svgContent += marker(nowX, y(last), signal, true);
+  svgContent += marker(x30, y(p30.mid), arrowGlyph, false);
+  svgContent += marker(x60, y(p60.mid), arrowGlyph, false);
+  svg.innerHTML = svgContent;
+}
+
+function renderLongTermRead(dailyCloses, todayPx){
+  const sma20 = predSma(dailyCloses,20), sma50 = predSma(dailyCloses,50);
+  const dailyRsi = predRsi(dailyCloses,14);
+  const prevClose = dailyCloses[dailyCloses.length-1];
+
+  const todayChangePct = (todayPx-prevClose)/prevClose*100;
+  const vsSma20 = (todayPx-sma20)/sma20*100;
+  const dayRsiScore = dailyRsi>50 ? -predClip((dailyRsi-50)/25,0,1)*100 : predClip((50-dailyRsi)/25,0,1)*100;
+  const dayScore = 0.5*predClip(todayChangePct/0.8,-1,1)*100 + 0.35*predClip(vsSma20/1.0,-1,1)*100 + 0.15*dayRsiScore;
+
+  const weekTrendPct = (dailyCloses[dailyCloses.length-1]-dailyCloses[dailyCloses.length-6])/dailyCloses[dailyCloses.length-6]*100;
+  const vsSma50 = (dailyCloses[dailyCloses.length-1]-sma50)/sma50*100;
+  const crossTilt = (sma20-sma50)/sma50*100;
+  const weekScore = 0.45*predClip(weekTrendPct/2.5,-1,1)*100 + 0.30*predClip(vsSma50/2.0,-1,1)*100 + 0.25*predClip(crossTilt/1.0,-1,1)*100;
+
+  function biasOf(score){
+    if(score>=25) return {label:'Bullish', arrow:'▲'};
+    if(score<=-25) return {label:'Bearish', arrow:'▼'};
+    return {label:'Neutral', arrow:'—'};
+  }
+  function fillTile(biasId, barId, rationaleId, sparkId, score, rationale, sparkArr){
+    const b = biasOf(score);
+    document.getElementById(biasId).innerHTML = '<span class="arrow">'+b.arrow+'</span>'+b.label;
+    const bar = document.getElementById(barId);
+    const w = Math.min(50, Math.abs(score)/2);
+    bar.style.left = (score>=0 ? '50%' : (50-w)+'%');
+    bar.style.width = w+'%';
+    document.getElementById(rationaleId).textContent = rationale;
+    const svg = document.getElementById(sparkId);
+    const W=200,H=30,pad=3;
+    const mn=Math.min(...sparkArr), mx=Math.max(...sparkArr);
+    const xs = i => pad+(i/(sparkArr.length-1))*(W-2*pad);
+    const ys = v => pad+(1-(v-mn)/((mx-mn)||1))*(H-2*pad);
+    const d = sparkArr.map((v,i)=>(i===0?'M':'L')+xs(i).toFixed(1)+','+ys(v).toFixed(1)).join(' ');
+    svg.innerHTML = '<path d="'+d+'" fill="none" stroke="#B98AFF" stroke-width="1.8" opacity="0.9" />'
+      + '<circle cx="'+xs(sparkArr.length-1).toFixed(1)+'" cy="'+ys(sparkArr[sparkArr.length-1]).toFixed(1)+'" r="2.5" fill="#B98AFF" />';
+  }
+  fillTile('predDayBias','predDayBar','predDayRationale','predDaySpark', dayScore,
+    (todayChangePct>=0?'+':'')+todayChangePct.toFixed(2)+"% vs. yesterday's close, "+(vsSma20>=0?'above':'below')+' the 20-day average, RSI '+dailyRsi.toFixed(0)+'.',
+    dailyCloses.slice(-15).concat([todayPx]));
+  fillTile('predWeekBias','predWeekBar','predWeekRationale','predWeekSpark', weekScore,
+    (weekTrendPct>=0?'+':'')+weekTrendPct.toFixed(2)+'% over 5 days, '+(vsSma50>=0?'above':'below')+' the 50-day average, 20d/50d gap '+(crossTilt>=0?'+':'')+crossTilt.toFixed(2)+'%.',
+    dailyCloses.slice(-30));
+}
+
+async function fetchAndRenderPrediction(){
+  setBadge('pred','pending');
+  try{
+    const { closes, vols } = await fetchIntradaySeries('NIFTYBEES.NS');
+    renderShortTermSignal(closes, vols);
+    await sleep(200);
+    const dailyCloses = await fetchDailySeries('NIFTYBEES.NS');
+    renderLongTermRead(dailyCloses, closes[closes.length-1]);
+    setBadge('pred','live');
+  }catch(e){
+    setBadge('pred','failed', 'Signal unavailable — ' + e.message);
+    document.getElementById('predChip').className = 'pred-chip hold';
+    document.getElementById('predChip').textContent = 'Unavailable';
   }
 }
 
