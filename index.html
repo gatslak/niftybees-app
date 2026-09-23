@@ -374,6 +374,21 @@ svg.pred-chart{ width:100%; height:auto; display:block; }
 .pred-lt-spark{ width:100%; height:30px; display:block; margin-top:9px; }
 .pred-lt-note{ font-size:10.5px; color:var(--muted); margin-top:10px; padding-top:9px; border-top:1px solid var(--pred-purple-soft); line-height:1.5; }
 
+/* ---- Detailed view toggle (30-60min + Day/Week collapsed by default) ---- */
+.pred-summary-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px; }
+.pred-summary-left{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.pred-mini-chip{ display:inline-flex; align-items:center; gap:6px; padding:5px 12px; border-radius:999px; font-family:Georgia,'Times New Roman',serif; font-size:13.5px; font-weight:700; }
+.pred-mini-chip.buy{ background:rgba(32,227,162,0.20); color:var(--pred-bull); }
+.pred-mini-chip.sell{ background:rgba(255,92,77,0.20); color:var(--pred-bear); }
+.pred-mini-chip.hold{ background:var(--pred-hold-soft); color:var(--pred-hold); }
+.pred-mini-conf{ font-size:11.5px; color:var(--muted); }
+.pred-toggle-btn{ display:inline-flex; align-items:center; gap:7px; background:var(--surface-2); border:1px solid var(--line); color:var(--text); font-size:12.5px; font-weight:700; padding:8px 14px; border-radius:10px; cursor:pointer; white-space:nowrap; font-family:inherit; }
+.pred-toggle-btn:hover{ border-color:var(--pred-gold); }
+.pred-toggle-btn .chev{ transition:transform 0.25s ease; display:inline-block; font-size:10px; }
+.pred-toggle-btn.expanded .chev{ transform:rotate(180deg); }
+.pred-details{ max-height:0; overflow:hidden; opacity:0; transition:max-height 0.4s ease, opacity 0.3s ease; }
+.pred-details.expanded{ max-height:4000px; opacity:1; }
+
 /* ---- Refresh button ---- */
 .refresh-btn{
   width:100%;
@@ -1057,9 +1072,20 @@ summary{
 </details>
 
 <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
-  <span>30–60 Min Signal</span>
+  <span>30–60 Min Signal &amp; Longer-Term Read</span>
   <span class="badge pending" id="badge-pred">pending</span>
 </div>
+<div class="pred-summary-row">
+  <div class="pred-summary-left">
+    <span class="pred-mini-chip hold" id="predMiniChip">—</span>
+    <span class="pred-mini-conf" id="predMiniConf">Confidence --</span>
+  </div>
+  <button type="button" class="pred-toggle-btn" id="predToggleBtn" aria-expanded="false" aria-controls="predDetails">
+    <span class="lbl">Detailed View</span><span class="chev">▾</span>
+  </button>
+</div>
+
+<div class="pred-details" id="predDetails">
 <div class="pred-horizon-note" id="sub-pred">Reads the last <strong>30 minutes</strong> of price + volume buildup to project the next <strong>30–60 minutes</strong> — not a 5–15 minute reflex.</div>
 
 <div class="pred-signal-card">
@@ -1127,6 +1153,7 @@ summary{
     </div>
   </div>
   <div class="pred-lt-note">Reads daily closes — price vs. its 20/50-day averages, the 5-day trend, and daily RSI(14) — not the 5-minute series above.</div>
+</div>
 </div>
 
 <div class="calculator-row">
@@ -2191,6 +2218,13 @@ function renderShortTermSignal(closes, vols){
   const arrow = signal==='BUY' ? '▲' : signal==='SELL' ? '▼' : '—';
   document.getElementById('predChip').innerHTML = '<span>'+arrow+'</span> '+signal;
   document.getElementById('predConf').textContent = confidence+'%';
+  const miniChip = document.getElementById('predMiniChip');
+  if(miniChip){
+    miniChip.className = 'pred-mini-chip '+signalClass;
+    miniChip.innerHTML = '<span>'+arrow+'</span> '+signal;
+  }
+  const miniConf = document.getElementById('predMiniConf');
+  if(miniConf) miniConf.textContent = 'Confidence '+confidence+'%';
   document.getElementById('predPx').textContent = predFmt(last);
   document.getElementById('predAsOf').textContent = 'last 5-min bar · ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
 
@@ -2359,6 +2393,10 @@ async function fetchAndRenderPrediction(){
     setBadge('pred','failed', 'Signal unavailable — ' + e.message);
     document.getElementById('predChip').className = 'pred-chip hold';
     document.getElementById('predChip').textContent = 'Unavailable';
+    const miniChip = document.getElementById('predMiniChip');
+    if(miniChip){ miniChip.className = 'pred-mini-chip hold'; miniChip.textContent = 'Unavailable'; }
+    const miniConf = document.getElementById('predMiniConf');
+    if(miniConf) miniConf.textContent = 'Confidence --';
   }
 }
 
@@ -2366,6 +2404,19 @@ buildSliders();
 drawGauge(0);
 runAll();
 setInterval(runAll, 60000); // auto-refresh every 60 seconds — was 15s, which combined with racing multiple proxies per data point was very likely bursting past free proxy rate limits
+
+(function(){
+  const btn = document.getElementById('predToggleBtn');
+  const details = document.getElementById('predDetails');
+  if(!btn || !details) return;
+  btn.addEventListener('click', function(){
+    const expanded = details.classList.toggle('expanded');
+    btn.classList.toggle('expanded', expanded);
+    btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    const lbl = btn.querySelector('.lbl');
+    if(lbl) lbl.textContent = expanded ? 'Hide Details' : 'Detailed View';
+  });
+})();
 </script>
 </body>
 </html>

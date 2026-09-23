@@ -980,6 +980,13 @@ function renderShortTermSignal(closes, vols){
   const arrow = signal==='BUY' ? '▲' : signal==='SELL' ? '▼' : '—';
   document.getElementById('predChip').innerHTML = '<span>'+arrow+'</span> '+signal;
   document.getElementById('predConf').textContent = confidence+'%';
+  const miniChip = document.getElementById('predMiniChip');
+  if(miniChip){
+    miniChip.className = 'pred-mini-chip '+signalClass;
+    miniChip.innerHTML = '<span>'+arrow+'</span> '+signal;
+  }
+  const miniConf = document.getElementById('predMiniConf');
+  if(miniConf) miniConf.textContent = 'Confidence '+confidence+'%';
   document.getElementById('predPx').textContent = predFmt(last);
   document.getElementById('predAsOf').textContent = 'last 5-min bar · ' + new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
 
@@ -1148,6 +1155,10 @@ async function fetchAndRenderPrediction(){
     setBadge('pred','failed', 'Signal unavailable — ' + e.message);
     document.getElementById('predChip').className = 'pred-chip hold';
     document.getElementById('predChip').textContent = 'Unavailable';
+    const miniChip = document.getElementById('predMiniChip');
+    if(miniChip){ miniChip.className = 'pred-mini-chip hold'; miniChip.textContent = 'Unavailable'; }
+    const miniConf = document.getElementById('predMiniConf');
+    if(miniConf) miniConf.textContent = 'Confidence --';
   }
 }
 
@@ -1155,3 +1166,16 @@ buildSliders();
 drawGauge(0);
 runAll();
 setInterval(runAll, 60000); // auto-refresh every 60 seconds — was 15s, which combined with racing multiple proxies per data point was very likely bursting past free proxy rate limits
+
+(function(){
+  const btn = document.getElementById('predToggleBtn');
+  const details = document.getElementById('predDetails');
+  if(!btn || !details) return;
+  btn.addEventListener('click', function(){
+    const expanded = details.classList.toggle('expanded');
+    btn.classList.toggle('expanded', expanded);
+    btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    const lbl = btn.querySelector('.lbl');
+    if(lbl) lbl.textContent = expanded ? 'Hide Details' : 'Detailed View';
+  });
+})();
