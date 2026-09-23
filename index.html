@@ -251,6 +251,22 @@ body{
 .upload-status.pending{background:var(--surface-2);color:var(--muted);}
 .upload-status.ok{background:rgba(32,227,162,0.10);color:var(--bull);border:1px solid rgba(32,227,162,0.3);}
 .upload-status.failed{background:rgba(255,92,77,0.10);color:var(--bear);border:1px solid rgba(255,92,77,0.3);}
+.upload-process-btn{
+  display:block;
+  width:100%;
+  margin-top:10px;
+  background:var(--surface-2);
+  border:1px solid var(--gold-dim);
+  color:var(--gold);
+  border-radius:8px;
+  padding:9px 12px;
+  font-size:12.5px;
+  font-weight:700;
+  font-family:Georgia,'Times New Roman',serif;
+  cursor:pointer;
+}
+.upload-process-btn:active{opacity:0.85;}
+.upload-process-btn:disabled{opacity:0.5;cursor:default;}
 .hs-avg{
   font-family:Georgia,'Times New Roman',serif;
   font-weight:600;
@@ -1208,6 +1224,7 @@ summary{
   <div class="upload-row">
     <label>Upload order screenshot (auto-fills units &amp; price below)</label>
     <input type="file" accept="image/*" id="holdings-upload-input" onchange="handleHoldingsUpload(event)">
+    <button type="button" class="upload-process-btn" id="holdings-process-btn" onclick="processSelectedScreenshot()">Read Screenshot &amp; Calculate</button>
   </div>
   <div class="upload-status" id="holdings-upload-status" style="display:none;"></div>
 
@@ -1747,63 +1764,137 @@ function computeExitPriceForTargetPct(isLong, totalUnits, totalValue, entryCharg
 
 // ---------------- order screenshot upload / OCR ----------------
 // Heuristic parser over raw OCR text (Tesseract output is noisy — no
-// reliable table structure survives). Strategy: scan line by line for rows
-// that look like an order (mention NIFTYBEES, or a BUY/SELL keyword) and
-// contain at least two numbers; pick the number in NIFTYBEES's plausible
-// price range (₹50–₹2000) as price, and the smallest remaining whole number
-// as quantity. Falls back to a whole-text "Qty:" / "Avg Price:" label scan
-// if no row-level match is found. Returns up to 5 orders (matches the app's
-// slot limit).
-function parseOrderScreenshotText(text){
-  const cleaned = (text || '').replace(/[|]/g, ' ');
-  const lines = cleaned.split(/\n+/).map(l => l.trim()).filter(Boolean);
-  const orders = [];
-  let anyBuy = false, anySell = false;
+// reliable table structure survives, and real broker screens often print
+// one order's symbol/side/qty/price across SEVERAL separate lines rather
+// than a single row). Strategy: split the text into "blocks" — one block
+// per order/holding, anchored on whichever marker line starts it (a BUY/SELL
+// mention, or a symbol/ticker mention when neither appears) — then search
+// each whole block (not just its anchor line) for qty and price using
+// label-aware regexes first (Qty:, Avg Price: — tolerating ₹/Rs/INR/no
+// symbol), falling back to a same-line two-number heuristic for compact
+// single-line rows. Returns up to 5 orders (matches the app's slot limit),
+// so a screenshot with multiple holdings/orders fills multiple slots and
+// the app then computes ONE combined breakeven/target-profit exit price
+// across all of them.
+function extractQtyPriceFromBlock(blockText){
+  let qty = null, price = null;
 
+  const qtyMatch = blockText.match(/qty\.?\s*[:\-]?\s*([\d,]{1,6})/i)
+                 || blockText.match(/quantity\.?\s*[:\-]?\s*([\d,]{1,6})/i)
+                 || blockText.match(/\bqty\b\s+([\d,]{1,6})/i);
+  if(qtyMatch) qty = parseInt(qtyMatch[1].replace(/,/g, ''), 10);
+
+  const priceMatch = blockText.match(/avg\.?\s*(?:trade\s*)?price\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
+                   || blockText.match(/avg\.?\s*(?:cost|rate)\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
+                   || blockText.match(/\bprice\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
+                   || blockText.match(/(?:₹|rs\.?|inr\.?)\s*([\d,]+\.\d{1,2})\b/i);
+  if(priceMatch) price = parseFloat(priceMatch[1].replace(/,/g, ''));
+
+  if(qty !== null && price !== null) return { qty, price, fromLabels: true };
+
+  // Fallback: no clear labels — look for a single line inside the block
+  // with two+ numbers, one in NIFTYBEES's plausible price range (₹50–2000).
+  const lines = blockText.split(/\n+/).map(l => l.trim()).filter(Boolean);
   for(const line of lines){
-    const hasBuy = /\bBUY\b/i.test(line);
-    const hasSell = /\bSELL\b/i.test(line);
-    if(hasBuy) anyBuy = true;
-    if(hasSell) anySell = true;
-    const mentionsSymbol = /niftybees/i.test(line);
-    if(!mentionsSymbol && !hasBuy && !hasSell) continue;
-
     const nums = (line.match(/[0-9][0-9,]*\.?[0-9]*/g) || [])
       .map(s => parseFloat(s.replace(/,/g, '')))
       .filter(n => !isNaN(n));
     if(nums.length < 2) continue;
-
     const priceCandidates = nums.filter(n => n >= 50 && n <= 2000);
     if(priceCandidates.length === 0) continue;
-    const price = priceCandidates[priceCandidates.length - 1];
-    const qtyCandidates = nums.filter(n => n !== price && Number.isInteger(n) && n > 0 && n < 100000);
+    const linePrice = price !== null ? price : priceCandidates[priceCandidates.length - 1];
+    const qtyCandidates = nums.filter(n => n !== linePrice && Number.isInteger(n) && n > 0 && n < 100000);
     if(qtyCandidates.length === 0) continue;
-    const qty = qtyCandidates[0];
+    return { qty: qty !== null ? qty : qtyCandidates[0], price: linePrice, fromLabels: false };
+  }
 
-    orders.push({ qty, price, side: (hasSell && !hasBuy) ? 'sell' : 'buy' });
+  return null;
+}
+
+function parseOrderScreenshotText(text){
+  const cleaned = (text || '').replace(/[|]/g, ' ');
+  const lines = cleaned.split(/\n+/).map(l => l.trim()).filter(Boolean);
+  if(lines.length === 0) return [];
+
+  const isAnchor = (line) => /\bBUY\b/i.test(line) || /\bSELL\b/i.test(line) || /nifty\s*bees/i.test(line);
+
+  // Group lines into blocks, each starting at an anchor line and running
+  // until (not including) the next anchor line.
+  let blocks = [];
+  let current = [];
+  for(const line of lines){
+    if(isAnchor(line) && current.length){
+      blocks.push(current);
+      current = [line];
+    } else {
+      current.push(line);
+    }
+  }
+  if(current.length) blocks.push(current);
+  // Drop any leading block that never hit an anchor (pure header noise)
+  // when there's more than one block to choose from.
+  if(blocks.length > 1 && !blocks[0].some(isAnchor)) blocks.shift();
+
+  const orders = [];
+  for(const block of blocks){
+    const blockText = block.join('\n');
+    const found = extractQtyPriceFromBlock(blockText);
+    if(!found || !(found.qty > 0) || !(found.price > 0)) continue;
+    const hasBuy = /\bBUY\b/i.test(blockText);
+    const hasSell = /\bSELL\b/i.test(blockText);
+    const side = (hasSell && !hasBuy) ? 'sell' : 'buy'; // holdings w/o BUY/SELL wording default to long
+    orders.push({ qty: found.qty, price: found.price, side });
     if(orders.length >= 5) break;
   }
 
-  if(orders.length === 0){
-    const qtyMatch = cleaned.match(/qty\.?\s*[:\-]?\s*([\d,]{1,6})/i) || cleaned.match(/quantity\.?\s*[:\-]?\s*([\d,]{1,6})/i);
-    const priceMatch = cleaned.match(/avg\.?\s*(?:trade\s*)?price\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
-                     || cleaned.match(/\bprice\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i);
-    if(qtyMatch && priceMatch){
-      const qty = parseInt(qtyMatch[1].replace(/,/g, ''), 10);
-      const price = parseFloat(priceMatch[1].replace(/,/g, ''));
-      if(qty > 0 && price > 0){
-        orders.push({ qty, price, side: (anySell && !anyBuy) ? 'sell' : 'buy' });
-      }
-    }
+  if(orders.length > 0) return orders;
+
+  // Last-resort fallback: whole-text single-order label scan (handles a
+  // screenshot with no clean block boundaries at all).
+  const anyBuy = /\bBUY\b/i.test(cleaned), anySell = /\bSELL\b/i.test(cleaned);
+  const found = extractQtyPriceFromBlock(cleaned);
+  if(found && found.qty > 0 && found.price > 0){
+    orders.push({ qty: found.qty, price: found.price, side: (anySell && !anyBuy) ? 'sell' : 'buy' });
   }
 
   return orders;
 }
 
+function withTimeout(promise, ms, message){
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+let holdingsUploadBusy = false;
+
 async function handleHoldingsUpload(event){
   const file = event.target.files && event.target.files[0];
   if(!file) return;
+  await processHoldingsScreenshot(file);
+}
+
+function processSelectedScreenshot(){
+  const input = document.getElementById('holdings-upload-input');
+  const file = input.files && input.files[0];
   const statusEl = document.getElementById('holdings-upload-status');
+  if(!file){
+    statusEl.style.display = 'block';
+    statusEl.className = 'upload-status failed';
+    statusEl.textContent = 'Choose a screenshot first (tap "Choose File" above), then tap this button.';
+    return;
+  }
+  processHoldingsScreenshot(file);
+}
+
+async function processHoldingsScreenshot(file){
+  if(holdingsUploadBusy) return;
+  holdingsUploadBusy = true;
+  const statusEl = document.getElementById('holdings-upload-status');
+  const btn = document.getElementById('holdings-process-btn');
+  if(btn) btn.disabled = true;
   statusEl.style.display = 'block';
   statusEl.className = 'upload-status pending';
   statusEl.textContent = 'Reading screenshot…';
@@ -1812,7 +1903,19 @@ async function handleHoldingsUpload(event){
     if(typeof Tesseract === 'undefined'){
       throw new Error('OCR engine failed to load — check your connection and try again, or enter the values manually below.');
     }
-    const { data: { text } } = await Tesseract.recognize(file, 'eng');
+    const { data: { text } } = await withTimeout(
+      Tesseract.recognize(file, 'eng', {
+        logger: (m) => {
+          if(m && m.status && typeof m.progress === 'number'){
+            const pct = Math.round(m.progress * 100);
+            const label = m.status.charAt(0).toUpperCase() + m.status.slice(1);
+            showCalcPopup(label + '… ' + pct + '%');
+          }
+        }
+      }),
+      30000,
+      'OCR timed out — your connection may be slow, or try a smaller/clearer screenshot. You can also enter the values manually below.'
+    );
     showCalcPopup('Calculating…');
     const orders = parseOrderScreenshotText(text);
     if(orders.length === 0){
@@ -1844,6 +1947,8 @@ async function handleHoldingsUpload(event){
     statusEl.textContent = 'Could not read this image — ' + e.message;
   }finally{
     hideCalcPopup();
+    holdingsUploadBusy = false;
+    if(btn) btn.disabled = false;
   }
 }
 
@@ -1913,14 +2018,15 @@ function computeHoldings(){
 
   let modeLabel = holdingsMode==='long' ? (holdingsSubMode==='mtf' ? 'Long · MTF (5×)' : holdingsSubMode==='intraday' ? 'Long · Intraday' : 'Long · Delivery') : 'Short · Intraday';
 
+  const combinedNote = slotsUsed > 1 ? ` — combined across ${slotsUsed} entries` : '';
   let html = `
     <div class="hs-avg-label">${avgLabel} (${modeLabel}, ${brokerLabel})</div>
     <div class="hs-avg">₹${avgPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>
-    <div class="hs-breakeven">Breakeven exit price${isMTF?' (covers charges + interest)':' (covers charges)'}: <span class="gold">₹${breakevenPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+    <div class="hs-breakeven">Even exit price, no profit/loss${isMTF?' (covers charges + interest)':' (covers charges)'}${combinedNote}: <span class="gold">₹${breakevenPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
   `;
   if(hasTargetPct){
     if(targetExitPrice > 0){
-      html += `<div class="hs-target-exit">Exit price for ${targetPct>0?'+':''}${targetPct}% net profit (after all fees${isMTF?' + interest':''} &amp; taxes): <span class="grn">₹${targetExitPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>`;
+      html += `<div class="hs-target-exit">Exit price for ${targetPct>0?'+':''}${targetPct}% net profit (after all fees${isMTF?' + interest':''} &amp; taxes)${combinedNote}: <span class="grn">₹${targetExitPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>`;
     } else {
       html += `<div class="hs-target-exit">Couldn't find a valid exit price for that target — try a smaller percentage.</div>`;
     }
