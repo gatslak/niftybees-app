@@ -480,7 +480,14 @@ function extractQtyPriceFromBlock(blockText){
 
   const qtyMatch = blockText.match(/qty\.?\s*[:\-]?\s*([\d,]{1,6})/i)
                  || blockText.match(/quantity\.?\s*[:\-]?\s*([\d,]{1,6})/i)
-                 || blockText.match(/\bqty\b\s+([\d,]{1,6})/i);
+                 || blockText.match(/\bqty\b\s+([\d,]{1,6})/i)
+                 // "930 /930 Shares" (or just "930 Shares" if the slash half
+                 // didn't survive OCR) — Angel One / Kotak order-book style.
+                 || blockText.match(/([\d,]{1,6})\s*(?:\/\s*[\d,]{1,6})?\s*shares/i)
+                 // "930 ORDER AGAIN" — same screens, but OCR sometimes drops
+                 // the "/930 Shares" part entirely and only the leading
+                 // filled-quantity number survives next to the button label.
+                 || blockText.match(/([\d,]{1,6})\s*order\s*again/i);
   if(qtyMatch) qty = parseInt(qtyMatch[1].replace(/,/g, ''), 10);
 
   const priceMatch = blockText.match(/avg\.?\s*(?:trade\s*)?price\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
@@ -488,6 +495,18 @@ function extractQtyPriceFromBlock(blockText){
                    || blockText.match(/\bprice\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
                    || blockText.match(/(?:₹|rs\.?|inr\.?)\s*([\d,]+\.\d{1,2})\b/i);
   if(priceMatch) price = parseFloat(priceMatch[1].replace(/,/g, ''));
+
+  // No label at all (e.g. Angel One's Order Report just prints the bare
+  // price next to the symbol, "NIFTYBEES 267.79") — fall back to the first
+  // properly-decimalled number (X.XX) in NIFTYBEES's plausible price range.
+  // Real prices always carry 2 decimals; dates, quantities and times don't,
+  // so this is unambiguous even amid other noise numbers in the block.
+  if(price === null){
+    const decimalCandidates = (blockText.match(/\b\d{2,4}\.\d{2}\b/g) || [])
+      .map(s => parseFloat(s))
+      .filter(n => n >= 50 && n <= 2000);
+    if(decimalCandidates.length) price = decimalCandidates[0];
+  }
 
   if(qty !== null && price !== null) return { qty, price, fromLabels: true };
 
@@ -515,7 +534,18 @@ function parseOrderScreenshotText(text){
   const lines = cleaned.split(/\n+/).map(l => l.trim()).filter(Boolean);
   if(lines.length === 0) return [];
 
-  const isAnchor = (line) => /\bBUY\b/i.test(line) || /\bSELL\b/i.test(line) || /nifty\s*bees/i.test(line);
+  // Anchor each new block on whichever marker reliably repeats once per
+  // entry. When the symbol name appears (holdings/order-report screens),
+  // use ONLY that as the anchor — BUY/SELL usually appears on its own line
+  // a row or two below the symbol within the SAME entry, and treating both
+  // as independent anchors would wrongly split one entry into two useless
+  // half-blocks (price with no qty, qty with no price). Only fall back to
+  // BUY/SELL as the anchor when the symbol name never appears at all.
+  const symbolRe = /nifty\s*bees/i;
+  const hasSymbolAnchors = lines.some(l => symbolRe.test(l));
+  const isAnchor = hasSymbolAnchors
+    ? (line) => symbolRe.test(line)
+    : (line) => /\bBUY\b/i.test(line) || /\bSELL\b/i.test(line);
 
   // Group lines into blocks, each starting at an anchor line and running
   // until (not including) the next anchor line.
