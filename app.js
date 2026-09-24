@@ -782,32 +782,58 @@ function parseOrderScreenshotText(text){
     ? (line) => symbolRe.test(line)
     : (line) => /\bBUY\b/i.test(line) || /\bSELL\b/i.test(line);
 
+  // Order-report screenshots print a date header ("15 Sep 2026") once above
+  // each same-day group of trades, not inline with every order — so this
+  // tracks the most recently-seen date as a running value while scanning
+  // top to bottom, and stamps each block with whatever date was current
+  // when that block started. That lets the holding-period field below be
+  // auto-filled instead of defaulting to 1 day regardless of how old the
+  // real trades are.
+  const dateRe = /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{4})\b/i;
+  const MONTH_IDX = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  function parseDateLine(line){
+    const m = line.match(dateRe);
+    if(!m) return null;
+    const mi = MONTH_IDX[m[2].slice(0,3).toLowerCase()];
+    if(mi === undefined) return null;
+    return new Date(parseInt(m[3],10), mi, parseInt(m[1],10));
+  }
+
   // Group lines into blocks, each starting at an anchor line and running
   // until (not including) the next anchor line.
   let blocks = [];
+  let blockDates = [];
   let current = [];
+  let currentDate = null;
+  let pendingBlockDate = null;
   for(const line of lines){
+    const d = parseDateLine(line);
+    if(d) currentDate = d;
     if(isAnchor(line) && current.length){
       blocks.push(current);
+      blockDates.push(pendingBlockDate);
       current = [line];
+      pendingBlockDate = currentDate;
     } else {
+      if(current.length === 0) pendingBlockDate = currentDate;
       current.push(line);
     }
   }
-  if(current.length) blocks.push(current);
+  if(current.length){ blocks.push(current); blockDates.push(pendingBlockDate); }
   // Drop any leading block that never hit an anchor (pure header noise)
   // when there's more than one block to choose from.
-  if(blocks.length > 1 && !blocks[0].some(isAnchor)) blocks.shift();
+  if(blocks.length > 1 && !blocks[0].some(isAnchor)){ blocks.shift(); blockDates.shift(); }
 
   const orders = [];
-  for(const block of blocks){
+  for(let bi = 0; bi < blocks.length; bi++){
+    const block = blocks[bi];
     const blockText = block.join('\n');
     const found = extractQtyPriceFromBlock(blockText);
     if(!found || !(found.qty > 0) || !(found.price > 0)) continue;
     const hasBuy = /\bBUY\b/i.test(blockText);
     const hasSell = /\bSELL\b/i.test(blockText);
     const side = (hasSell && !hasBuy) ? 'sell' : 'buy'; // holdings w/o BUY/SELL wording default to long
-    orders.push({ qty: found.qty, price: found.price, side, productType: detectProductType(blockText) });
+    orders.push({ qty: found.qty, price: found.price, side, productType: detectProductType(blockText), date: blockDates[bi] || null });
     if(orders.length >= MAX_HOLDINGS_SLOTS) break;
   }
 
@@ -818,7 +844,7 @@ function parseOrderScreenshotText(text){
   const anyBuy = /\bBUY\b/i.test(cleaned), anySell = /\bSELL\b/i.test(cleaned);
   const found = extractQtyPriceFromBlock(cleaned);
   if(found && found.qty > 0 && found.price > 0){
-    orders.push({ qty: found.qty, price: found.price, side: (anySell && !anyBuy) ? 'sell' : 'buy', productType: detectProductType(cleaned) });
+    orders.push({ qty: found.qty, price: found.price, side: (anySell && !anyBuy) ? 'sell' : 'buy', productType: detectProductType(cleaned), date: parseDateLine(cleaned) });
   }
 
   return orders;
@@ -1024,6 +1050,34 @@ async function processHoldingsScreenshots(files){
       shortTypeMismatch = true;
     }
 
+    // MTF interest accrues daily on the borrowed portion, so it matters how
+    // long each entry has actually been held — not a flat default of 1 day
+    // regardless of whether the trade was yesterday or a month ago. The
+    // calculator only has a single "Holding period (days)" field (applied
+    // to the combined borrowed amount), so this computes a value-weighted
+    // average of each dated order's real days-held, which reproduces the
+    // exact correct total interest through that one field. Only attempted
+    // for MTF, and only when at least one order's date was actually read.
+    let detectedHoldDays = null;
+    if(!sideIsSell && detectedType === 'mtf'){
+      const today = new Date(); today.setHours(0,0,0,0);
+      const dated = allOrders.filter(o => o.date instanceof Date && !isNaN(o.date));
+      if(dated.length > 0){
+        let weightedSum = 0, weightTotal = 0;
+        dated.forEach(o => {
+          const days = Math.max(0, Math.round((today - o.date) / 86400000));
+          const value = o.qty * o.price;
+          weightedSum += value * days;
+          weightTotal += value;
+        });
+        if(weightTotal > 0){
+          detectedHoldDays = Math.max(1, Math.round(weightedSum / weightTotal));
+          const mtfDaysInput = document.getElementById('holdings-mtf-days');
+          if(mtfDaysInput) mtfDaysInput.value = String(detectedHoldDays);
+        }
+      }
+    }
+
     let startSlot = firstEmptyHoldingsSlot();
     const spaceLeft = MAX_HOLDINGS_SLOTS - (startSlot - 1);
     const toFill = allOrders.slice(0, Math.max(0, spaceLeft));
@@ -1047,6 +1101,8 @@ async function processHoldingsScreenshots(files){
     if(!sideIsSell && detectedType){
       msg += ` Mode set to ${modeLabels[detectedType]} — read from the product tag on your screenshot.`;
       if(detectedType === 'mtf') msg += ' These are your actual total shares (already leveraged) — not multiplied by 5x again.';
+      if(detectedHoldDays !== null) msg += ` Holding period set to ${detectedHoldDays} day${detectedHoldDays===1?'':'s'} — value-weighted from each order's date through today.`;
+      else if(detectedType === 'mtf') msg += " Couldn't read order dates clearly, so holding period is still whatever's in that field — worth checking before relying on the interest cost shown.";
     } else if(shortTypeMismatch){
       msg += ` Note: this reads as a short sale, always treated as Intraday here, but the screenshot's product tag looked like ${modeLabels[detectedType]} — worth a quick check in case that's an OCR misread.`;
     }
@@ -1177,10 +1233,11 @@ function computeHoldings(){
     html += `<div class="hs-row"><span class="lbl">${holdingsMode==='long'?'Total invested':'Total short proceeds'} (${totalUnits} units, ${slotsUsed} order${slotsUsed===1?'':'s'})</span><span class="val">${fmtCharge(totalValue)}</span></div>`;
   }
 
-  let exitPrice, exitPriceIsLive, exitPriceLabel;
+  let exitPrice, exitPriceIsLive, exitPriceLabel, swingPct = null;
   if(exitInputMode === 'pct'){
     const pct = parseFloat(document.getElementById('holdings-exit-pct').value);
     if(!isNaN(pct)){
+      swingPct = pct;
       exitPrice = avgPrice * (1 + pct/100);
       exitPriceIsLive = false;
       exitPriceLabel = `(${pct>=0?'+':''}${pct}% swing from avg)`;
@@ -1228,6 +1285,9 @@ function computeHoldings(){
       <div class="hs-row"><span class="lbl">Exit price used ${exitPriceLabel}</span><span class="val">₹${exitPrice.toLocaleString('en-IN',{minimumFractionDigits:2})}</span></div>
       <div class="hs-row"><span class="lbl">Gross P&amp;L</span><span class="val ${grossPnl>=0?'bull':'bear'}">${grossPnl>=0?'+':''}${fmtCharge(grossPnl)}</span></div>
     `;
+    if(exitInputMode === 'pct' && swingPct !== null){
+      html += `<div class="fine-print">Your ${swingPct>=0?'+':''}${swingPct}% price swing works out to ${netPct>=0?'+':''}${netPct.toFixed(2)}% net profit${isMTF?' on your capital':''} once charges${isMTF?' and interest':''} are counted — that's the "Net return on your capital" row below. To go the other way (type the profit % you want, get the exit price), use the Target net profit field instead.</div>`;
+    }
 
     html += `<div class="breakup-title" style="margin-top:10px;">Entry charges — ${slotsUsed} separate order${slotsUsed===1?'':'s'} (${brokerLabel})</div><ul class="breakup-list">
       <li><span class="bk">Brokerage:</span> ${fmtCharge(entryTotals.brokerage)}</li>
