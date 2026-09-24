@@ -126,6 +126,47 @@ async function fetchGift(){
   }
 }
 // ---------------- NSE pre-open (official) ----------------
+// NSE's market-data-pre-open endpoint itself is time-gated: it only returns
+// a real "niftyPreopenStatus" row during the actual ~9:00-9:08 AM IST
+// pre-open session. Outside that ~8-minute window it responds 200 OK with
+// an EMPTY payload ({"data":[],"msg":"No Data Found"}) — not blocked, not
+// broken, just genuinely nothing to report yet/anymore for the day. Since
+// a fresh page load has no memory of an earlier successful read, checking
+// the app at any other time of day (i.e. almost all day, every day) always
+// hit the catch block and showed "unavailable" — which is what looked like
+// "never loads". Fixed by caching the last successfully-captured reading
+// for today (IST) in localStorage the moment it's seen live, and falling
+// back to that cached reading the rest of the day instead of erroring out.
+const PREOPEN_CACHE_KEY = 'niftybees_preopen_cache_v1';
+function istDateStr(){
+  return new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Kolkata', year:'numeric', month:'2-digit', day:'2-digit'}).format(new Date());
+}
+function istTimeStr(){
+  return new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit', hour12:false}).format(new Date());
+}
+function istHourMinNum(){
+  const parts = new Intl.DateTimeFormat('en-GB', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit', hour12:false}).formatToParts(new Date());
+  const h = parseInt(parts.find(p=>p.type==='hour').value,10);
+  const m = parseInt(parts.find(p=>p.type==='minute').value,10);
+  return h*60+m;
+}
+function savePreopenCache(pc, adv, dec, unch){
+  try{
+    localStorage.setItem(PREOPEN_CACHE_KEY, JSON.stringify({date: istDateStr(), pChange: pc, advances: adv, declines: dec, unchanged: unch, capturedAt: istTimeStr()}));
+  }catch(e){ /* storage unavailable — cache is a convenience only, safe to skip */ }
+}
+function loadPreopenCache(){
+  try{
+    const raw = localStorage.getItem(PREOPEN_CACHE_KEY);
+    if(!raw) return null;
+    const obj = JSON.parse(raw);
+    return (obj && obj.date === istDateStr()) ? obj : null;
+  }catch(e){ return null; }
+}
+function showPreopenValue(pc){
+  document.getElementById('val-preopen').innerHTML = trendArrow(pc) + (pc>0?'+':'')+pc.toFixed(2)+'%';
+  document.getElementById('val-preopen').className = 'card-value ' + (pc>0?'bull':pc<0?'bear':'flat');
+}
 async function fetchPreopen(){
   setBadge('preopen','pending');
   try{
@@ -134,20 +175,33 @@ async function fetchPreopen(){
     // The Nifty 50 index itself is never a row inside j.data — that array is
     // only the 50 individual constituent stocks. NSE reports the index's own
     // pre-open change in a separate top-level "niftyPreopenStatus" object.
-    // Looking for the index inside j.data (the old code) always threw "no
-    // index row in response", which is why this card never once loaded.
     const row = j.niftyPreopenStatus;
-    if(!row || row.pChange===undefined || row.pChange===null) throw new Error('no index row in response');
+    if(!row || row.pChange===undefined || row.pChange===null) throw new Error('window closed right now');
     const pc = parseFloat(row.pChange);
     data.preopen = pc;
-    document.getElementById('val-preopen').innerHTML = trendArrow(pc) + (pc>0?'+':'')+pc.toFixed(2)+'%';
-    document.getElementById('val-preopen').className = 'card-value ' + (pc>0?'bull':pc<0?'bear':'flat');
+    showPreopenValue(pc);
     renderBreadth(j.advances, j.declines, j.unchanged);
+    savePreopenCache(pc, j.advances, j.declines, j.unchanged);
     const windowOpen = String(row.status||'').toUpperCase()==='OPEN';
     setBadge('preopen','live', windowOpen ? 'Nifty 50 pre-open indicative move' : 'Last pre-open reading — window is closed now (~9:00–9:08 AM IST)');
   }catch(e){
-    document.getElementById('breadth-box').style.display = 'none';
-    setBadge('preopen','failed', 'Blocked/failed ('+e.message+')');
+    // Expected outside the ~9:00-9:08 AM IST window — fall back to today's
+    // cached reading (captured earlier today, this device) if we have one.
+    const cached = loadPreopenCache();
+    if(cached){
+      data.preopen = cached.pChange;
+      showPreopenValue(cached.pChange);
+      renderBreadth(cached.advances, cached.declines, cached.unchanged);
+      setBadge('preopen','live', `Last pre-open reading today, captured ${cached.capturedAt} IST — window is closed now`);
+    } else {
+      document.getElementById('breadth-box').style.display = 'none';
+      const mins = istHourMinNum();
+      if(mins < 540){ // before 9:00 AM IST
+        setBadge('preopen','pending', "Opens ~9:00–9:08 AM IST — check back then.");
+      } else {
+        setBadge('preopen','failed', "No pre-open reading captured today on this device — the ~9:00–9:08 AM IST window already passed. It'll show up automatically if you have the page open during that window; otherwise check back tomorrow.");
+      }
+    }
   }
 }
 
@@ -375,9 +429,10 @@ function setHoldingsSubMode(sub){
   computeHoldings();
 }
 
+const MAX_HOLDINGS_SLOTS = 20;
 function setHoldingsSlotCount(){
   const n = parseInt(document.getElementById('holdings-slot-count').value, 10);
-  for(let i=1; i<=5; i++){
+  for(let i=1; i<=MAX_HOLDINGS_SLOTS; i++){
     document.querySelector(`.holdings-row[data-slot="${i}"]`).style.display = (i<=n) ? 'flex' : 'none';
   }
   computeHoldings();
@@ -469,29 +524,37 @@ function computeExitPriceForTargetPct(isLong, totalUnits, totalValue, entryCharg
 // mention, or a symbol/ticker mention when neither appears) — then search
 // each whole block (not just its anchor line) for qty and price using
 // label-aware regexes first (Qty:, Avg Price: — tolerating ₹/Rs/INR/no
-// symbol), falling back to a same-line two-number heuristic for compact
-// single-line rows. Returns up to 5 orders (matches the app's slot limit),
-// so a screenshot with multiple holdings/orders fills multiple slots and
-// the app then computes ONE combined breakeven/target-profit exit price
-// across all of them.
+// symbol, and the label wording used by Zerodha/Groww/Upstox/ICICI Direct/
+// HDFC Securities/5paisa/Angel One/Kotak Neo, not just one broker), falling
+// back to a same-line two-number heuristic for compact single-line rows.
+// Returns up to MAX_HOLDINGS_SLOTS orders, so a screenshot (or several,
+// via the "+ Add more screenshots" flow) with multiple holdings/orders
+// fills multiple slots and the app then computes ONE combined breakeven/
+// target-profit exit price across all of them.
 function extractQtyPriceFromBlock(blockText){
   let qty = null, price = null;
 
-  const qtyMatch = blockText.match(/qty\.?\s*[:\-]?\s*([\d,]{1,6})/i)
+  const qtyMatch = blockText.match(/(?:executed|filled|traded)?\s*qty\.?\s*[:\-]?\s*([\d,]{1,6})/i)
                  || blockText.match(/quantity\.?\s*[:\-]?\s*([\d,]{1,6})/i)
                  || blockText.match(/\bqty\b\s+([\d,]{1,6})/i)
+                 || blockText.match(/\bfilled\s*[:\-]?\s*([\d,]{1,6})/i)
                  // "930 /930 Shares" (or just "930 Shares" if the slash half
                  // didn't survive OCR) — Angel One / Kotak order-book style.
                  || blockText.match(/([\d,]{1,6})\s*(?:\/\s*[\d,]{1,6})?\s*shares/i)
                  // "930 ORDER AGAIN" — same screens, but OCR sometimes drops
                  // the "/930 Shares" part entirely and only the leading
                  // filled-quantity number survives next to the button label.
-                 || blockText.match(/([\d,]{1,6})\s*order\s*again/i);
+                 || blockText.match(/([\d,]{1,6})\s*order\s*again/i)
+                 // Zerodha Console holdings table: "Qty. 30" or bare "30 30"
+                 // (qty repeated as t1+total) right under a "Qty." header.
+                 || blockText.match(/\bunits?\.?\s*[:\-]?\s*([\d,]{1,6})/i);
   if(qtyMatch) qty = parseInt(qtyMatch[1].replace(/,/g, ''), 10);
 
-  const priceMatch = blockText.match(/avg\.?\s*(?:trade\s*)?price\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
+  const priceMatch = blockText.match(/avg\.?\s*(?:trade\s*)?(?:buy\s*|sell\s*)?price\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
                    || blockText.match(/avg\.?\s*(?:cost|rate)\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
+                   || blockText.match(/(?:trade|net|buy|sell)\s*rate\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
                    || blockText.match(/\bprice\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
+                   || blockText.match(/\brate\.?\s*[:\-]?\s*(?:₹|rs\.?|inr\.?)?\s*([\d,]+\.?\d{0,2})/i)
                    || blockText.match(/(?:₹|rs\.?|inr\.?)\s*([\d,]+\.\d{1,2})\b/i);
   if(priceMatch) price = parseFloat(priceMatch[1].replace(/,/g, ''));
 
@@ -572,7 +635,7 @@ function parseOrderScreenshotText(text){
     const hasSell = /\bSELL\b/i.test(blockText);
     const side = (hasSell && !hasBuy) ? 'sell' : 'buy'; // holdings w/o BUY/SELL wording default to long
     orders.push({ qty: found.qty, price: found.price, side });
-    if(orders.length >= 5) break;
+    if(orders.length >= MAX_HOLDINGS_SLOTS) break;
   }
 
   if(orders.length > 0) return orders;
@@ -599,16 +662,19 @@ function withTimeout(promise, ms, message){
 let holdingsUploadBusy = false;
 
 async function handleHoldingsUpload(event){
-  const file = event.target.files && event.target.files[0];
-  if(!file) return;
-  await processHoldingsScreenshot(file);
+  const files = event.target.files ? Array.from(event.target.files) : [];
+  if(files.length === 0) return;
+  await processHoldingsScreenshots(files);
+  // Clear the input's selection so re-choosing the SAME file again later
+  // (e.g. after editing slots) still fires a change event.
+  event.target.value = '';
 }
 
 function processSelectedScreenshot(){
   const input = document.getElementById('holdings-upload-input');
-  const file = input.files && input.files[0];
+  const files = input.files ? Array.from(input.files) : [];
   const statusEl = document.getElementById('holdings-upload-status');
-  if(!file){
+  if(files.length === 0){
     statusEl.style.display = 'block';
     statusEl.className = 'upload-status failed';
     statusEl.textContent = 'Choose a screenshot first (tap "Choose File" above), then tap this button.';
@@ -620,7 +686,15 @@ function processSelectedScreenshot(){
     statusEl.textContent = 'Still working on the previous screenshot — please wait a moment.';
     return;
   }
-  processHoldingsScreenshot(file);
+  processHoldingsScreenshots(files);
+}
+
+// Opens the same file picker again for additional screenshots — new
+// selections are ADDED to whatever slots are already filled (never
+// overwritten), so you can build up a full statement from several
+// screenshots taken one at a time.
+function addMoreScreenshots(){
+  document.getElementById('holdings-upload-input').click();
 }
 
 function setUploadProgress(statusEl, label, pct){
@@ -632,58 +706,147 @@ function setUploadProgress(statusEl, label, pct){
     '<div class="upload-progress-track"><div class="upload-progress-fill" style="width:' + (clamped !== null ? clamped : 4) + '%"></div></div>';
 }
 
-async function processHoldingsScreenshot(file){
+// Upscales small/low-res images and boosts contrast (grayscale + a simple
+// linear stretch) before handing them to Tesseract — screenshots straight
+// off a phone are often small enough, or low-contrast enough (dark app
+// themes especially), that individual digits/letters get missed or
+// confused with each other. This runs entirely client-side via <canvas>
+// and measurably improves recognition across different brokers' apps and
+// screenshot styles without needing any server-side processing.
+async function preprocessImageForOCR(file){
+  try{
+    const bitmap = await createImageBitmap(file);
+    const MIN_DIM = 1200;
+    const scale = Math.max(1, MIN_DIM / Math.max(bitmap.width, bitmap.height));
+    const w = Math.round(bitmap.width * scale);
+    const h = Math.round(bitmap.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, 0, 0, w, h);
+    const imgData = ctx.getImageData(0, 0, w, h);
+    const d = imgData.data;
+    // Grayscale first, then find the actual min/max luminance so the
+    // contrast stretch adapts to each screenshot instead of using a fixed
+    // guess — this is what makes it help both light and dark app themes.
+    let min = 255, max = 0;
+    const gray = new Uint8ClampedArray(w*h);
+    for(let i=0, p=0; i<d.length; i+=4, p++){
+      const g = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+      gray[p] = g;
+      if(g < min) min = g;
+      if(g > max) max = g;
+    }
+    const range = Math.max(1, max - min);
+    for(let i=0, p=0; i<d.length; i+=4, p++){
+      const stretched = ((gray[p] - min) / range) * 255;
+      d[i] = d[i+1] = d[i+2] = stretched;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    return blob || file;
+  }catch(e){
+    // Preprocessing is a best-effort enhancement — if the browser can't do
+    // it (very old browser, huge image, etc.) just OCR the original file.
+    return file;
+  }
+}
+
+// Finds the first empty slot (1-indexed) so new screenshots APPEND rather
+// than overwrite whatever's already been entered/read in earlier.
+function firstEmptyHoldingsSlot(){
+  for(let i=1; i<=MAX_HOLDINGS_SLOTS; i++){
+    const row = document.querySelector(`.holdings-row[data-slot="${i}"]`);
+    const u = row.querySelector('.h-units').value;
+    const p = row.querySelector('.h-price').value;
+    if(!(parseFloat(u)>0) || !(parseFloat(p)>0)) return i;
+  }
+  return MAX_HOLDINGS_SLOTS + 1; // full
+}
+
+async function processHoldingsScreenshots(files){
   if(holdingsUploadBusy) return;
   holdingsUploadBusy = true;
   const statusEl = document.getElementById('holdings-upload-status');
   const btn = document.getElementById('holdings-process-btn');
   if(btn) btn.disabled = true;
-  setUploadProgress(statusEl, 'Reading screenshot…', 0);
-  showCalcPopup('Reading screenshot…');
+  showCalcPopup('Reading screenshot' + (files.length>1?'s':'') + '…');
+
+  const allOrders = [];
+  let anySide = null;
+  const failedFiles = [];
+
   try{
     if(typeof Tesseract === 'undefined'){
       throw new Error('OCR engine failed to load — check your connection and try again, or enter the values manually below.');
     }
-    const { data: { text } } = await withTimeout(
-      Tesseract.recognize(file, 'eng', {
-        logger: (m) => {
-          if(m && m.status && typeof m.progress === 'number'){
-            const pct = Math.round(m.progress * 100);
-            const label = m.status.charAt(0).toUpperCase() + m.status.slice(1);
-            showCalcPopup(label + '… ' + pct + '%');
-            setUploadProgress(statusEl, label + '…', pct);
-          }
+    for(let fi = 0; fi < files.length; fi++){
+      const file = files[fi];
+      const fileTag = files.length>1 ? `screenshot ${fi+1} of ${files.length}` : 'screenshot';
+      setUploadProgress(statusEl, `Preparing ${fileTag}…`, 0);
+      const preprocessed = await preprocessImageForOCR(file);
+      try{
+        const { data: { text } } = await withTimeout(
+          Tesseract.recognize(preprocessed, 'eng', {
+            logger: (m) => {
+              if(m && m.status && typeof m.progress === 'number'){
+                const pct = Math.round(m.progress * 100);
+                const label = m.status.charAt(0).toUpperCase() + m.status.slice(1);
+                showCalcPopup(`${label}… ${pct}% (${fileTag})`);
+                setUploadProgress(statusEl, `${label}… (${fileTag})`, pct);
+              }
+            }
+          }),
+          30000,
+          `OCR timed out on ${fileTag} — your connection may be slow, or try a smaller/clearer screenshot.`
+        );
+        const orders = parseOrderScreenshotText(text);
+        if(orders.length === 0){
+          failedFiles.push(fileTag);
+        } else {
+          if(anySide === null) anySide = orders[0].side;
+          allOrders.push(...orders);
         }
-      }),
-      30000,
-      'OCR timed out — your connection may be slow, or try a smaller/clearer screenshot. You can also enter the values manually below.'
-    );
-    showCalcPopup('Calculating…');
-    setUploadProgress(statusEl, 'Calculating…', 100);
-    const orders = parseOrderScreenshotText(text);
-    if(orders.length === 0){
-      statusEl.className = 'upload-status failed';
-      statusEl.textContent = "Couldn't read quantity/price clearly from this screenshot — try a clearer or closer-cropped image, or enter the values manually below.";
-      return;
-    }
-    const sideIsSell = orders[0].side === 'sell';
-    setHoldingsMode(sideIsSell ? 'short' : 'long');
-    const n = Math.min(orders.length, 5);
-    document.getElementById('holdings-slot-count').value = String(n);
-    setHoldingsSlotCount();
-    for(let i=0; i<5; i++){
-      const row = document.querySelector(`.holdings-row[data-slot="${i+1}"]`);
-      if(i < n){
-        row.querySelector('.h-units').value = orders[i].qty;
-        row.querySelector('.h-price').value = orders[i].price;
-      } else {
-        row.querySelector('.h-units').value = '';
-        row.querySelector('.h-price').value = '';
+      }catch(fileErr){
+        failedFiles.push(fileTag + ' (' + fileErr.message + ')');
       }
     }
-    const summary = orders.map(o => `${o.qty} @ ₹${o.price.toFixed(2)}`).join(', ');
+
+    showCalcPopup('Calculating…');
+    setUploadProgress(statusEl, 'Calculating…', 100);
+
+    if(allOrders.length === 0){
+      statusEl.className = 'upload-status failed';
+      statusEl.textContent = "Couldn't read quantity/price clearly from " + (files.length>1?'any of these screenshots':'this screenshot') + " — try clearer or closer-cropped images, or enter the values manually below.";
+      return;
+    }
+
+    const sideIsSell = anySide === 'sell';
+    setHoldingsMode(sideIsSell ? 'short' : 'long');
+
+    let startSlot = firstEmptyHoldingsSlot();
+    const spaceLeft = MAX_HOLDINGS_SLOTS - (startSlot - 1);
+    const toFill = allOrders.slice(0, Math.max(0, spaceLeft));
+    const overflow = allOrders.length - toFill.length;
+
+    const endSlot = startSlot - 1 + toFill.length;
+    document.getElementById('holdings-slot-count').value = String(Math.max(endSlot, parseInt(document.getElementById('holdings-slot-count').value,10) || 1));
+    setHoldingsSlotCount();
+
+    toFill.forEach((o, idx) => {
+      const row = document.querySelector(`.holdings-row[data-slot="${startSlot + idx}"]`);
+      row.querySelector('.h-units').value = o.qty;
+      row.querySelector('.h-price').value = o.price;
+    });
+
+    const summary = toFill.map(o => `${o.qty} @ ₹${o.price.toFixed(2)}`).join(', ');
+    let msg = 'Detected from ' + (files.length>1 ? files.length+' screenshots' : 'screenshot') + ' (' + (sideIsSell?'Sell':'Buy') + '): ' + summary + ' — double-check against your screenshot' + (files.length>1?'s':'') + '; the fields below stay editable if anything looks off.';
+    if(overflow > 0) msg += ` (${overflow} more entr${overflow===1?'y':'ies'} read but skipped — only ${MAX_HOLDINGS_SLOTS} slots available.)`;
+    if(failedFiles.length > 0) msg += ` Couldn't read: ${failedFiles.join(', ')}.`;
     statusEl.className = 'upload-status ok';
-    statusEl.textContent = 'Detected from screenshot (' + (sideIsSell?'Sell':'Buy') + '): ' + summary + ' — double-check against your screenshot; the fields below stay editable if anything looks off.';
+    statusEl.textContent = msg;
     computeHoldings();
   }catch(e){
     statusEl.className = 'upload-status failed';
@@ -769,7 +932,7 @@ function computeHoldings(){
   `;
   if(hasTargetPct){
     if(targetExitPrice > 0){
-      html += `<div class="hs-target-exit">Exit price for ${targetPct>0?'+':''}${targetPct}% net profit (after all fees${isMTF?' + interest':''} &amp; taxes)${combinedNote}: <span class="grn">₹${targetExitPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>`;
+      html += `<div class="hs-target-exit">Target exit price for ${targetPct>0?'+':''}${targetPct}% net profit (after all fees${isMTF?' + interest':''} &amp; taxes)${combinedNote}: <span class="purple">₹${targetExitPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>`;
     } else {
       html += `<div class="hs-target-exit">Couldn't find a valid exit price for that target — try a smaller percentage.</div>`;
     }
