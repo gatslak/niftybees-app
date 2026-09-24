@@ -1,3 +1,4 @@
 datetime,nifty_prev_close,nse_preopen_pChange,gift_nifty_gap,india_vix,dow_pct,nasdaq_pct,nikkei_pct,hangseng_pct,usdinr_pct,bias_score,verdict,actual_open,niftybees_open
 2026-09-02 18:54:39,24055.8,,64.7,11.34,-0.79,-1.03,-2.85,-0.07,-0.16,0.159,NEUTRAL / flat lean,,
 2026-09-02 20:07:29,24055.8,,92.2,11.34,0.76,0.46,-2.85,-0.07,-0.16,0.51,BULLISH lean,,
+2026-09-24 14:48:58,23446.8,,-4.3,12.71,-1.03,-0.69,0.76,-0.29,0.26,-0.438,BEARISH lean,,
