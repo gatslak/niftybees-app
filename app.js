@@ -1,3 +1,14 @@
+// The GitHub Pages mirror and the WordPress page share this exact same
+// file — everything is identical between them except this one line: the
+// GitHub Pages copy should just say "11", not the full "11Creations".
+// Decided at runtime from the hostname rather than keeping two separate
+// copies of the file in sync by hand.
+(function(){
+  const isGithubPages = /(^|\.)github\.io$/.test(location.hostname);
+  const el = document.getElementById('footer-brand');
+  if(el) el.textContent = 'Created by ' + (isGithubPages ? '11' : '11Creations');
+})();
+
 // ---------------- state ----------------
 const WEIGHTS = {
   gift: 3.0, preopen: 2.5, us: 1.5, asia: 1.0, fx: 0.5, vix: 0.5
@@ -553,6 +564,30 @@ function setHoldingsSlotCount(){
   for(let i=1; i<=MAX_HOLDINGS_SLOTS; i++){
     document.querySelector(`.holdings-row[data-slot="${i}"]`).style.display = (i<=n) ? 'flex' : 'none';
   }
+  computeHoldings();
+}
+
+// Clears every value the person typed into the calculator — all unit/price
+// slots, the exit price/%/target fields, MTF holding days, and any upload
+// status message — so a mistyped entry (or wanting to start a fresh
+// calculation) doesn't mean hunting down and clearing each box by hand.
+// Leaves broker, Long/Short mode and number-of-entries as they were, since
+// those are settings rather than data that gets mistyped.
+function resetHoldingsCalculator(){
+  for(let i=1; i<=MAX_HOLDINGS_SLOTS; i++){
+    const row = document.querySelector(`.holdings-row[data-slot="${i}"]`);
+    row.querySelector('.h-units').value = '';
+    row.querySelector('.h-price').value = '';
+  }
+  document.getElementById('holdings-exit-price').value = '';
+  document.getElementById('holdings-exit-pct').value = '';
+  document.getElementById('holdings-target-pct').value = '';
+  const mtfDays = document.getElementById('holdings-mtf-days');
+  if(mtfDays) mtfDays.value = '1';
+  const uploadInput = document.getElementById('holdings-upload-input');
+  if(uploadInput) uploadInput.value = '';
+  const statusEl = document.getElementById('holdings-upload-status');
+  if(statusEl){ statusEl.style.display = 'none'; statusEl.innerHTML = ''; }
   computeHoldings();
 }
 
