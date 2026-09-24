@@ -196,20 +196,36 @@ def get_nse_preopen(session, key="NIFTY"):
         return None
 
 
-def maybe_capture_preopen_snapshot(now, force=False):
+BREADTH_ALERT_THRESHOLD = 35  # out of 50 constituents, same threshold as the in-app hooter
+
+
+def maybe_capture_preopen_snapshot(now, state, pages_url, force=False):
     """Independent of the daily digest — on every run that falls inside the
     actual ~9:00-9:08 AM IST NSE pre-open session, try to grab a live
-    reading and save it as today's snapshot to preopen_today.json.
+    reading, save it as today's snapshot to preopen_today.json, AND check
+    for a lopsided breadth (35+ of 50 stocks one-sided) to push an urgent
+    ntfy alert.
 
-    This runs server-side on a schedule, so it captures the reading whether
-    or not any user's own browser happens to be open at that moment. The
-    web app can then fetch this file (via jsDelivr) at any time of day, on
-    any device, instead of depending on a same-device-only local cache.
+    This runs server-side on a schedule, so both the snapshot and the push
+    alert happen whether or not any user's own browser is open — the whole
+    point being a phone notification that doesn't depend on the site being
+    open anywhere. Returns (state_changed, state) since it may update
+    state["breadth_alert_date"] for once-per-day dedup.
     """
     if not force and not in_window(now, PREOPEN_CAPTURE_WINDOW):
-        return False
+        return False, state
 
     today_str = now.strftime("%Y-%m-%d")
+    session = get_nse_session()
+    preopen = get_nse_preopen(session)
+    if not preopen or preopen.get("index_pChange") is None:
+        print("  [preopen snapshot] no live data yet this run.")
+        return False, state
+
+    changed = False
+
+    # 1) Persist today's snapshot for the web app — only the first good
+    # read of the day needs to write it.
     existing = {}
     if os.path.isfile(PREOPEN_FILE):
         try:
@@ -217,27 +233,39 @@ def maybe_capture_preopen_snapshot(now, force=False):
                 existing = json.load(f)
         except Exception:
             existing = {}
-    if existing.get("date") == today_str and existing.get("pChange") is not None:
-        return False  # already captured today's reading — nothing to do
+    if not (existing.get("date") == today_str and existing.get("pChange") is not None):
+        snapshot = {
+            "date": today_str,
+            "pChange": preopen["index_pChange"],
+            "advances": preopen.get("advances"),
+            "declines": preopen.get("declines"),
+            "unchanged": preopen.get("unchanged"),
+            "capturedAt": now.strftime("%H:%M"),
+        }
+        with open(PREOPEN_FILE, "w") as f:
+            json.dump(snapshot, f, indent=2)
+        print(f"  [preopen snapshot] captured: {snapshot}")
+        changed = True
 
-    session = get_nse_session()
-    preopen = get_nse_preopen(session)
-    if not preopen or preopen.get("index_pChange") is None:
-        print("  [preopen snapshot] no live data yet this run.")
-        return False
+    # 2) Lopsided-breadth push alert — fires at most once per day, straight
+    # to your phone via ntfy, independent of any browser being open.
+    adv = preopen.get("advances") or 0
+    dec = preopen.get("declines") or 0
+    crossed = adv >= BREADTH_ALERT_THRESHOLD or dec >= BREADTH_ALERT_THRESHOLD
+    if crossed and state.get("breadth_alert_date") != today_str:
+        side, count = ("advancing", adv) if adv >= dec else ("declining", dec)
+        send_ntfy(
+            title="NIFTYBEES: Lopsided pre-open!",
+            message=(f"{count} of 50 Nifty stocks {side} in pre-open — "
+                     f"a strongly one-sided open looks likely. Check the app before 9:15."),
+            priority="urgent",
+            tags="rotating_light,loud_sound,warning",
+            click_url=pages_url,
+        )
+        state["breadth_alert_date"] = today_str
+        changed = True
 
-    snapshot = {
-        "date": today_str,
-        "pChange": preopen["index_pChange"],
-        "advances": preopen.get("advances"),
-        "declines": preopen.get("declines"),
-        "unchanged": preopen.get("unchanged"),
-        "capturedAt": now.strftime("%H:%M"),
-    }
-    with open(PREOPEN_FILE, "w") as f:
-        json.dump(snapshot, f, indent=2)
-    print(f"  [preopen snapshot] captured: {snapshot}")
-    return True
+    return changed, state
 
 
 def get_nse_indices(session):
@@ -536,7 +564,8 @@ def main():
         state = run_swing_check(now, state, pages_url, force=force)
         did_something = True
 
-    if maybe_capture_preopen_snapshot(now, force=force):
+    captured, state = maybe_capture_preopen_snapshot(now, state, pages_url, force=force)
+    if captured:
         did_something = True
 
     if not did_something:
