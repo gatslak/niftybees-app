@@ -639,27 +639,6 @@ svg.pred-chart{ width:100%; height:auto; display:block; }
   50%{ transform:translateY(9px); opacity:0.55; }
 }
 .card-sub{font-size:11px;color:var(--muted);margin-top:3px;}
-.manual-row{margin-top:10px;display:flex;gap:8px;}
-.manual-row input{
-  flex:1;
-  background:var(--surface-2);
-  border:1px solid var(--line);
-  border-radius:8px;
-  color:var(--text);
-  font-family:Georgia,'Times New Roman',serif;
-  font-size:13px;
-  padding:8px 10px;
-}
-.manual-row button{
-  background:var(--surface-2);
-  border:1px solid var(--gold-dim);
-  color:var(--gold);
-  border-radius:8px;
-  padding:8px 12px;
-  font-size:12px;
-  font-family:Georgia,'Times New Roman',serif;
-  cursor:pointer;
-}
 
 /* ---- Calculator ---- */
 .calc-card{padding:16px;}
@@ -1187,10 +1166,6 @@ summary{
     <span class="lc-label">Last weekday close</span>
     <span class="lc-value" id="lc-value">--</span>
     <span class="lc-pct" id="lc-pct"></span>
-  </div>
-  <div class="manual-row">
-    <input type="number" step="0.01" placeholder="Enter LTP manually e.g. 253.40" id="manual-price">
-    <button onclick="applyManualPrice()">Use</button>
   </div>
 </div>
 
@@ -1967,21 +1942,9 @@ async function fetchNiftybeesPrice(){
     }catch(e2){
       setBadge('price','failed');
       document.getElementById('sub-price').textContent =
-        'Both sources failed (Yahoo: '+e1.message+' · NSE: '+e2.message+') — enter LTP manually below';
+        'Both sources failed (Yahoo: '+e1.message+' · NSE: '+e2.message+') — try refreshing in a moment';
     }
   }
-}
-
-function applyManualPrice(){
-  const v = parseFloat(document.getElementById('manual-price').value);
-  if(isNaN(v) || v<=0) return;
-  livePrice = v;
-  document.getElementById('price-value').textContent = '₹' + v.toLocaleString('en-IN',{minimumFractionDigits:2});
-  document.getElementById('price-pct').textContent = '';
-  document.getElementById('price-pct').className = 'price-pct';
-  document.getElementById('sub-price').textContent = 'Manually entered';
-  setBadge('price','live');
-  computeHoldings();
 }
 
 let holdingsMode = 'long';       // 'long' | 'short'

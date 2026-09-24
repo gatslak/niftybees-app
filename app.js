@@ -494,21 +494,9 @@ async function fetchNiftybeesPrice(){
     }catch(e2){
       setBadge('price','failed');
       document.getElementById('sub-price').textContent =
-        'Both sources failed (Yahoo: '+e1.message+' · NSE: '+e2.message+') — enter LTP manually below';
+        'Both sources failed (Yahoo: '+e1.message+' · NSE: '+e2.message+') — try refreshing in a moment';
     }
   }
-}
-
-function applyManualPrice(){
-  const v = parseFloat(document.getElementById('manual-price').value);
-  if(isNaN(v) || v<=0) return;
-  livePrice = v;
-  document.getElementById('price-value').textContent = '₹' + v.toLocaleString('en-IN',{minimumFractionDigits:2});
-  document.getElementById('price-pct').textContent = '';
-  document.getElementById('price-pct').className = 'price-pct';
-  document.getElementById('sub-price').textContent = 'Manually entered';
-  setBadge('price','live');
-  computeHoldings();
 }
 
 let holdingsMode = 'long';       // 'long' | 'short'
