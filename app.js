@@ -511,6 +511,16 @@ function setExitMode(mode){
   document.getElementById('exit-pct-row').style.display = mode==='pct' ? 'flex' : 'none';
   computeHoldings();
 }
+
+// Copies the purple "Target exit price" figure straight into the Exit
+// Price field, so the big P&L breakdown below immediately reflects what
+// selling AT the target would actually look like — instead of silently
+// continuing to show today's live price, which is what was confusing
+// people into thinking their profit target itself was a loss.
+function fillExitPriceFromTarget(price){
+  document.getElementById('holdings-exit-price').value = price.toFixed(2);
+  setExitMode('price');
+}
 let holdingsSubMode = 'delivery'; // 'delivery' | 'intraday' | 'mtf' — only meaningful when holdingsMode==='long'
 
 function setHoldingsMode(mode){
@@ -1040,7 +1050,9 @@ function computeHoldings(){
   `;
   if(hasTargetPct){
     if(targetExitPrice > 0){
-      html += `<div class="hs-target-exit">Target exit price for ${targetPct>0?'+':''}${targetPct}% net profit (after all fees${isMTF?' + interest':''} &amp; taxes)${combinedNote}: <span class="purple">₹${targetExitPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>`;
+      html += `<div class="hs-target-exit">Target exit price for ${targetPct>0?'+':''}${targetPct}% net profit (after all fees${isMTF?' + interest':''} &amp; taxes)${combinedNote}: <span class="purple">₹${targetExitPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})}</span>
+        <button type="button" class="use-target-price-btn" onclick="fillExitPriceFromTarget(${targetExitPrice})">Use this price in the P&amp;L below ↓</button>
+      </div>`;
     } else {
       html += `<div class="hs-target-exit">Couldn't find a valid exit price for that target — try a smaller percentage.</div>`;
     }
@@ -1072,8 +1084,10 @@ function computeHoldings(){
     const manualExit = parseFloat(document.getElementById('holdings-exit-price').value);
     exitPrice = manualExit>0 ? manualExit : livePrice;
     exitPriceIsLive = !(manualExit>0) && !!livePrice;
-    exitPriceLabel = exitPriceIsLive ? '(live)' : '(your entry)';
+    exitPriceLabel = exitPriceIsLive ? "— today's live price (as if selling right now)" : '(as typed above)';
   }
+
+  const showLiveVsTargetHint = hasTargetPct && exitPriceIsLive && targetExitPrice > 0;
 
   if(exitPrice){
     const exitValue = totalUnits*exitPrice; // exit uses the REAL (leveraged) unit count
@@ -1097,6 +1111,10 @@ function computeHoldings(){
       } else {
         html += `<div class="breakeven-warning">\u26A0\uFE0F Charges alone already exceed the gross profit at this exit price — this doesn't clear costs even before interest.</div>`;
       }
+    }
+
+    if(showLiveVsTargetHint){
+      html += `<div class="exit-price-hint">The numbers below use today's live price (₹${exitPrice.toLocaleString('en-IN',{minimumFractionDigits:2})}), not your ${targetPct>0?'+':''}${targetPct}% target of ₹${targetExitPrice.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2})} above. Tap "Use this price in the P&amp;L below" on the target line to see it at your target instead.</div>`;
     }
 
     html += `

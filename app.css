@@ -249,6 +249,28 @@ body{
   margin-bottom:10px;
 }
 .hs-target-exit .purple{color:var(--pred-purple);font-weight:700;font-size:15px;}
+.use-target-price-btn{
+  display:block;
+  margin-top:8px;
+  padding:6px 12px;
+  font-size:12px;
+  font-weight:700;
+  color:#fff;
+  background:var(--pred-purple);
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+}
+.use-target-price-btn:active{opacity:0.8;}
+.exit-price-hint{
+  font-size:11.5px;
+  color:var(--pred-purple);
+  background:var(--pred-purple-soft);
+  border-radius:8px;
+  padding:7px 10px;
+  margin:-2px 0 8px;
+  line-height:1.45;
+}
 
 /* ---- Order-screenshot upload ---- */
 .upload-row{
