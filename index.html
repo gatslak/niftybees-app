@@ -2429,18 +2429,22 @@ async function processHoldingsScreenshots(files){
     const sideIsSell = anySide === 'sell';
     setHoldingsMode(sideIsSell ? 'short' : 'long');
 
-    // Auto-select Delivery/Intraday/MTF (5x) from the product badge the
-    // broker printed next to each order (MARGIN/MTF, CNC/DELIVERY,
-    // MIS/INTRADAY) — only when every order agrees on the same product
-    // type, so a mixed or unreadable batch leaves the toggle exactly where
-    // you last set it rather than guessing.
-    let detectedType = null;
+    // Read the product badge (MARGIN/MTF, CNC/DELIVERY, MIS/INTRADAY) on
+    // every order — long or short alike — only when every order agrees on
+    // the same product type, so a mixed or unreadable batch is left alone
+    // rather than guessed at.
+    const seenTypes = new Set(allOrders.map(o => o.productType).filter(Boolean));
+    const detectedType = seenTypes.size === 1 ? [...seenTypes][0] : null;
+    let shortTypeMismatch = false;
     if(!sideIsSell){
-      const seenTypes = new Set(allOrders.map(o => o.productType).filter(Boolean));
-      if(seenTypes.size === 1){
-        detectedType = [...seenTypes][0];
-        setHoldingsSubMode(detectedType);
-      }
+      // Long: actually drive the Delivery/Intraday/MTF toggle from what was read.
+      if(detectedType) setHoldingsSubMode(detectedType);
+    } else if(detectedType && detectedType !== 'intraday'){
+      // Short: there's no toggle to set (shorting is always Intraday here,
+      // matching real broker rules), but if the badge read back something
+      // else, that's worth a flag — either an unusual product or an OCR
+      // misread, not something to silently swallow.
+      shortTypeMismatch = true;
     }
 
     let startSlot = firstEmptyHoldingsSlot();
@@ -2462,9 +2466,11 @@ async function processHoldingsScreenshots(files){
     let msg = 'Detected from ' + (files.length>1 ? files.length+' screenshots' : 'screenshot') + ' (' + (sideIsSell?'Sell':'Buy') + '): ' + summary + ' — double-check against your screenshot' + (files.length>1?'s':'') + '; the fields below stay editable if anything looks off.';
     if(overflow > 0) msg += ` (${overflow} more entr${overflow===1?'y':'ies'} read but skipped — only ${MAX_HOLDINGS_SLOTS} slots available.)`;
     if(failedFiles.length > 0) msg += ` Couldn't read: ${failedFiles.join(', ')}.`;
-    if(detectedType){
-      const modeLabels = {mtf:'MTF (5×)', intraday:'Intraday', delivery:'Delivery'};
+    const modeLabels = {mtf:'MTF (5×)', intraday:'Intraday', delivery:'Delivery'};
+    if(!sideIsSell && detectedType){
       msg += ` Mode set to ${modeLabels[detectedType]} — read from the product tag on your screenshot.`;
+    } else if(shortTypeMismatch){
+      msg += ` Note: this reads as a short sale, always treated as Intraday here, but the screenshot's product tag looked like ${modeLabels[detectedType]} — worth a quick check in case that's an OCR misread.`;
     }
     statusEl.className = 'upload-status ok';
     statusEl.textContent = msg;
