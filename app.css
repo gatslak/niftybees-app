@@ -242,6 +242,21 @@ body{
 .upload-status.pending{background:var(--surface-2);color:var(--muted);}
 .upload-status.ok{background:rgba(32,227,162,0.10);color:var(--bull);border:1px solid rgba(32,227,162,0.3);}
 .upload-status.failed{background:rgba(255,92,77,0.10);color:var(--bear);border:1px solid rgba(255,92,77,0.3);}
+.upload-progress-label{margin-bottom:6px;}
+.upload-progress-track{
+  width:100%;
+  height:7px;
+  border-radius:999px;
+  background:rgba(255,255,255,0.08);
+  overflow:hidden;
+}
+.upload-progress-fill{
+  height:100%;
+  width:0%;
+  border-radius:999px;
+  background:linear-gradient(90deg, var(--gold-dim), var(--gold));
+  transition:width 0.25s ease;
+}
 .upload-process-btn{
   display:block;
   width:100%;

@@ -624,15 +624,22 @@ function processSelectedScreenshot(){
   processHoldingsScreenshot(file);
 }
 
+function setUploadProgress(statusEl, label, pct){
+  statusEl.style.display = 'block';
+  statusEl.className = 'upload-status pending';
+  const clamped = typeof pct === 'number' ? Math.max(0, Math.min(100, pct)) : null;
+  statusEl.innerHTML =
+    '<div class="upload-progress-label">' + label + (clamped !== null ? ' — ' + clamped + '%' : '') + '</div>' +
+    '<div class="upload-progress-track"><div class="upload-progress-fill" style="width:' + (clamped !== null ? clamped : 4) + '%"></div></div>';
+}
+
 async function processHoldingsScreenshot(file){
   if(holdingsUploadBusy) return;
   holdingsUploadBusy = true;
   const statusEl = document.getElementById('holdings-upload-status');
   const btn = document.getElementById('holdings-process-btn');
   if(btn) btn.disabled = true;
-  statusEl.style.display = 'block';
-  statusEl.className = 'upload-status pending';
-  statusEl.textContent = 'Reading screenshot…';
+  setUploadProgress(statusEl, 'Reading screenshot…', 0);
   showCalcPopup('Reading screenshot…');
   try{
     if(typeof Tesseract === 'undefined'){
@@ -645,6 +652,7 @@ async function processHoldingsScreenshot(file){
             const pct = Math.round(m.progress * 100);
             const label = m.status.charAt(0).toUpperCase() + m.status.slice(1);
             showCalcPopup(label + '… ' + pct + '%');
+            setUploadProgress(statusEl, label + '…', pct);
           }
         }
       }),
@@ -652,6 +660,7 @@ async function processHoldingsScreenshot(file){
       'OCR timed out — your connection may be slow, or try a smaller/clearer screenshot. You can also enter the values manually below.'
     );
     showCalcPopup('Calculating…');
+    setUploadProgress(statusEl, 'Calculating…', 100);
     const orders = parseOrderScreenshotText(text);
     if(orders.length === 0){
       statusEl.className = 'upload-status failed';
