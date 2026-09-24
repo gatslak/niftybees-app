@@ -1676,8 +1676,35 @@ function showPreopenValue(pc){
   document.getElementById('val-preopen').innerHTML = trendArrow(pc) + (pc>0?'+':'')+pc.toFixed(2)+'%';
   document.getElementById('val-preopen').className = 'card-value ' + (pc>0?'bull':pc<0?'bear':'flat');
 }
+// A GitHub Actions job already runs every 5 minutes through the actual
+// ~9:00-9:08 AM IST pre-open window and captures a reading server-side,
+// independent of any user's own browser — see niftybees_monitor.py's
+// maybe_capture_preopen_snapshot(). That reading is committed to the repo
+// as preopen_today.json, so it's available to EVERY device, all day, even
+// if this device's browser was never open at 9 AM. We check it first.
+async function fetchRepoPreopenSnapshot(){
+  try{
+    const r = await fetch('https://cdn.jsdelivr.net/gh/gatslak/niftybees-app@main/preopen_today.json?_cb=' + Date.now(), {cache:'no-store'});
+    if(!r.ok) return null;
+    const j = await r.json();
+    if(j && j.date === istDateStr() && j.pChange !== null && j.pChange !== undefined) return j;
+    return null;
+  }catch(e){ return null; }
+}
 async function fetchPreopen(){
   setBadge('preopen','pending');
+
+  const repoSnap = await fetchRepoPreopenSnapshot();
+  if(repoSnap){
+    data.preopen = repoSnap.pChange;
+    showPreopenValue(repoSnap.pChange);
+    renderBreadth(repoSnap.advances, repoSnap.declines, repoSnap.unchanged);
+    savePreopenCache(repoSnap.pChange, repoSnap.advances, repoSnap.declines, repoSnap.unchanged);
+    checkBreadthHooter(repoSnap.advances, repoSnap.declines, repoSnap.unchanged);
+    setBadge('preopen','live', `Pre-open reading today, captured ${repoSnap.capturedAt} IST`);
+    return;
+  }
+
   try{
     const r = await fetchViaProxy('https://www.nseindia.com/api/market-data-pre-open?key=NIFTY');
     const j = await r.json();
@@ -1695,8 +1722,9 @@ async function fetchPreopen(){
     const windowOpen = String(row.status||'').toUpperCase()==='OPEN';
     setBadge('preopen','live', windowOpen ? 'Nifty 50 pre-open indicative move' : 'Last pre-open reading — window is closed now (~9:00–9:08 AM IST)');
   }catch(e){
-    // Expected outside the ~9:00-9:08 AM IST window — fall back to today's
-    // cached reading (captured earlier today, this device) if we have one.
+    // Expected outside the ~9:00-9:08 AM IST window (and if the repo
+    // snapshot above hasn't landed yet) — fall back to today's cached
+    // reading (captured earlier today, this device) if we have one.
     const cached = loadPreopenCache();
     if(cached){
       data.preopen = cached.pChange;
@@ -1709,7 +1737,7 @@ async function fetchPreopen(){
       if(mins < 540){ // before 9:00 AM IST
         setBadge('preopen','pending', "Opens ~9:00–9:08 AM IST — check back then.");
       } else {
-        setBadge('preopen','failed', "No pre-open reading captured today on this device — the ~9:00–9:08 AM IST window already passed. It'll show up automatically if you have the page open during that window; otherwise check back tomorrow.");
+        setBadge('preopen','failed', "No pre-open reading captured today yet — the ~9:00–9:08 AM IST window already passed and today's automatic snapshot hasn't landed. Check back shortly, or first thing tomorrow.");
       }
     }
   }

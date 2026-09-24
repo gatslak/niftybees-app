@@ -53,8 +53,14 @@ IST = ZoneInfo("Asia/Kolkata")
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(HERE, "monitor_state.json")
 LOG_FILE = os.path.join(HERE, "premarket_log.csv")
+PREOPEN_FILE = os.path.join(HERE, "preopen_today.json")
 
 DIGEST_WINDOW = ((8, 40), (8, 59))      # send the daily digest once inside this window
+# NSE's actual pre-open order-matching session runs ~9:00-9:08 AM IST. This
+# window is padded on both sides for cron jitter (the workflow runs every 5
+# minutes, so a run always lands inside it) and is deliberately independent
+# of DIGEST_WINDOW above, which fires earlier and misses the live data.
+PREOPEN_CAPTURE_WINDOW = ((8, 58), (9, 14))
 MARKET_OPEN = (9, 15)
 MARKET_CLOSE = (15, 30)
 SWING_TIERS = [                          # largest first; magnitude decides priority/sound tier
@@ -173,18 +179,65 @@ def get_nse_preopen(session, key="NIFTY"):
         r = session.get(url, timeout=8)
         r.raise_for_status()
         j = r.json()
-        rows = j.get("data", [])
-        index_row = next((row for row in rows if row.get("symbol") == "NIFTY 50"), None)
+        # The index's own move lives in the top-level "niftyPreopenStatus"
+        # object, NOT inside the "data" array (that array only holds the 50
+        # constituent stocks, never a "NIFTY 50" row) — matches the fix
+        # already made on the web app's JS side.
+        index_row = j.get("niftyPreopenStatus") or {}
         return {
             "advances": j.get("advances"),
             "declines": j.get("declines"),
             "unchanged": j.get("unchanged"),
-            "index_pChange": index_row.get("pChange") if index_row else None,
-            "index_iep": index_row.get("iep") if index_row else None,
+            "index_pChange": index_row.get("pChange"),
+            "index_iep": index_row.get("iep"),
         }
     except Exception as e:
         print(f"  [warn] NSE pre-open fetch failed: {e}")
         return None
+
+
+def maybe_capture_preopen_snapshot(now, force=False):
+    """Independent of the daily digest — on every run that falls inside the
+    actual ~9:00-9:08 AM IST NSE pre-open session, try to grab a live
+    reading and save it as today's snapshot to preopen_today.json.
+
+    This runs server-side on a schedule, so it captures the reading whether
+    or not any user's own browser happens to be open at that moment. The
+    web app can then fetch this file (via jsDelivr) at any time of day, on
+    any device, instead of depending on a same-device-only local cache.
+    """
+    if not force and not in_window(now, PREOPEN_CAPTURE_WINDOW):
+        return False
+
+    today_str = now.strftime("%Y-%m-%d")
+    existing = {}
+    if os.path.isfile(PREOPEN_FILE):
+        try:
+            with open(PREOPEN_FILE) as f:
+                existing = json.load(f)
+        except Exception:
+            existing = {}
+    if existing.get("date") == today_str and existing.get("pChange") is not None:
+        return False  # already captured today's reading — nothing to do
+
+    session = get_nse_session()
+    preopen = get_nse_preopen(session)
+    if not preopen or preopen.get("index_pChange") is None:
+        print("  [preopen snapshot] no live data yet this run.")
+        return False
+
+    snapshot = {
+        "date": today_str,
+        "pChange": preopen["index_pChange"],
+        "advances": preopen.get("advances"),
+        "declines": preopen.get("declines"),
+        "unchanged": preopen.get("unchanged"),
+        "capturedAt": now.strftime("%H:%M"),
+    }
+    with open(PREOPEN_FILE, "w") as f:
+        json.dump(snapshot, f, indent=2)
+    print(f"  [preopen snapshot] captured: {snapshot}")
+    return True
 
 
 def get_nse_indices(session):
@@ -481,6 +534,9 @@ def main():
 
     if within_market_hours(now) or force:
         state = run_swing_check(now, state, pages_url, force=force)
+        did_something = True
+
+    if maybe_capture_preopen_snapshot(now, force=force):
         did_something = True
 
     if not did_something:
