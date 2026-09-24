@@ -1,5 +1,4 @@
 
-
 :root{
   --bg:#0B1120;
   --surface:#121B30;
@@ -36,6 +35,37 @@ body{
   max-width:none !important;
   margin:0 !important;
 }
+/* WordPress's wpautop filter runs on this page's raw content before the
+   <html>/<head>/<body> tags proper are reached, and wraps that leading
+   run of lines (doctype, meta tags, etc.) in a stray <p> full of <br>s.
+   Browsers still parse the real <html>/<head>/<body> structure correctly,
+   but that stray <p> survives as the very first visible child of
+   .entry-content and renders as ~300-400px of empty space above the app
+   on mobile. It carries no real content, so it's safe to always hide the
+   first child here. No-op on GitHub Pages (.entry-content doesn't exist
+   there, and there's no such wrapping element to hide). */
+.entry-content > p:first-child{
+  display:none !important;
+}
+.mood-badges{
+  display:flex;
+  gap:6px;
+  margin-left:auto;
+}
+.mood-chip{
+  width:26px;
+  height:26px;
+  border-radius:50%;
+  background:rgba(0,0,0,0.35);
+  box-shadow:0 3px 10px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.05);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:12px;
+  line-height:1;
+}
+.mood-chip.bull{color:var(--bull);}
+.mood-chip.bear{color:var(--bear);}
 .refresh-popup{
   position:fixed;
   top:14px;

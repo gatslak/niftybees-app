@@ -1,4 +1,3 @@
-
 // ---------------- state ----------------
 const WEIGHTS = {
   gift: 3.0, preopen: 2.5, us: 1.5, asia: 1.0, fx: 0.5, vix: 0.5
