@@ -732,6 +732,20 @@ function extractQtyPriceFromBlock(blockText){
   return null;
 }
 
+// Reads the product-type badge (MARGIN/MTF, CNC/DELIVERY, MIS/INTRADAY) that
+// brokers print next to each order — separate from qty/price — so the
+// Delivery/Intraday/MTF (5x) toggle above the upload button can be set
+// automatically instead of staying wherever it was last left. Checked in
+// this order because "MARGIN" is genuinely ambiguous in isolation (some
+// brokers also print unrelated "margin required" text), but within a tight
+// per-order block it reliably means the Margin Trading Facility product.
+function detectProductType(blockText){
+  if(/\bMTF\b/i.test(blockText) || /\bMARGIN\b/i.test(blockText)) return 'mtf';
+  if(/\bMIS\b/i.test(blockText) || /\bINTRADAY\b/i.test(blockText)) return 'intraday';
+  if(/\bCNC\b/i.test(blockText) || /\bDELIVERY\b/i.test(blockText)) return 'delivery';
+  return null;
+}
+
 function parseOrderScreenshotText(text){
   const cleaned = (text || '').replace(/[|]/g, ' ');
   const lines = cleaned.split(/\n+/).map(l => l.trim()).filter(Boolean);
@@ -775,7 +789,7 @@ function parseOrderScreenshotText(text){
     const hasBuy = /\bBUY\b/i.test(blockText);
     const hasSell = /\bSELL\b/i.test(blockText);
     const side = (hasSell && !hasBuy) ? 'sell' : 'buy'; // holdings w/o BUY/SELL wording default to long
-    orders.push({ qty: found.qty, price: found.price, side });
+    orders.push({ qty: found.qty, price: found.price, side, productType: detectProductType(blockText) });
     if(orders.length >= MAX_HOLDINGS_SLOTS) break;
   }
 
@@ -786,7 +800,7 @@ function parseOrderScreenshotText(text){
   const anyBuy = /\bBUY\b/i.test(cleaned), anySell = /\bSELL\b/i.test(cleaned);
   const found = extractQtyPriceFromBlock(cleaned);
   if(found && found.qty > 0 && found.price > 0){
-    orders.push({ qty: found.qty, price: found.price, side: (anySell && !anyBuy) ? 'sell' : 'buy' });
+    orders.push({ qty: found.qty, price: found.price, side: (anySell && !anyBuy) ? 'sell' : 'buy', productType: detectProductType(cleaned) });
   }
 
   return orders;
@@ -967,6 +981,20 @@ async function processHoldingsScreenshots(files){
     const sideIsSell = anySide === 'sell';
     setHoldingsMode(sideIsSell ? 'short' : 'long');
 
+    // Auto-select Delivery/Intraday/MTF (5x) from the product badge the
+    // broker printed next to each order (MARGIN/MTF, CNC/DELIVERY,
+    // MIS/INTRADAY) — only when every order agrees on the same product
+    // type, so a mixed or unreadable batch leaves the toggle exactly where
+    // you last set it rather than guessing.
+    let detectedType = null;
+    if(!sideIsSell){
+      const seenTypes = new Set(allOrders.map(o => o.productType).filter(Boolean));
+      if(seenTypes.size === 1){
+        detectedType = [...seenTypes][0];
+        setHoldingsSubMode(detectedType);
+      }
+    }
+
     let startSlot = firstEmptyHoldingsSlot();
     const spaceLeft = MAX_HOLDINGS_SLOTS - (startSlot - 1);
     const toFill = allOrders.slice(0, Math.max(0, spaceLeft));
@@ -986,6 +1014,10 @@ async function processHoldingsScreenshots(files){
     let msg = 'Detected from ' + (files.length>1 ? files.length+' screenshots' : 'screenshot') + ' (' + (sideIsSell?'Sell':'Buy') + '): ' + summary + ' — double-check against your screenshot' + (files.length>1?'s':'') + '; the fields below stay editable if anything looks off.';
     if(overflow > 0) msg += ` (${overflow} more entr${overflow===1?'y':'ies'} read but skipped — only ${MAX_HOLDINGS_SLOTS} slots available.)`;
     if(failedFiles.length > 0) msg += ` Couldn't read: ${failedFiles.join(', ')}.`;
+    if(detectedType){
+      const modeLabels = {mtf:'MTF (5×)', intraday:'Intraday', delivery:'Delivery'};
+      msg += ` Mode set to ${modeLabels[detectedType]} — read from the product tag on your screenshot.`;
+    }
     statusEl.className = 'upload-status ok';
     statusEl.textContent = msg;
     computeHoldings();
