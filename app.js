@@ -522,6 +522,18 @@ function fillExitPriceFromTarget(price){
 }
 let holdingsSubMode = 'delivery'; // 'delivery' | 'intraday' | 'mtf' — only meaningful when holdingsMode==='long'
 
+// When true, the numbers typed/read into the Units fields are treated as
+// the REAL, already-executed position (e.g. read straight off a broker's
+// order report) rather than "your own money's worth to be leveraged 5x".
+// Manually planning a trade means typing what YOUR capital buys and letting
+// the calculator show the resulting 5x position — that's the default
+// (false). But an OCR-read MTF order already reports the true total shares
+// bought, which already includes the leverage; multiplying that by 5 again
+// was the double-counting bug. Only ever flipped true by the OCR path
+// itself when it detects MTF, and reset to false by a manual mode click or
+// Reset — see setHoldingsSubMode() and resetHoldingsCalculator().
+let holdingsUnitsAreActualPosition = false;
+
 function setHoldingsMode(mode){
   holdingsMode = mode;
   document.getElementById('holdings-mode-btn-long').classList.toggle('active', mode==='long');
@@ -537,8 +549,13 @@ function setHoldingsMode(mode){
   computeHoldings();
 }
 
-function setHoldingsSubMode(sub){
+function setHoldingsSubMode(sub, fromAutoDetect){
   holdingsSubMode = sub;
+  // A real click means the user is taking manual control — revert to
+  // "typed units = your capital, leverage 5x" semantics. The OCR path
+  // passes fromAutoDetect=true and sets holdingsUnitsAreActualPosition
+  // itself right after calling this, so it isn't clobbered here.
+  if(!fromAutoDetect) holdingsUnitsAreActualPosition = false;
   ['delivery','intraday','mtf'].forEach(s => {
     document.getElementById('holdings-sub-btn-'+s).classList.toggle('active', s===sub);
   });
@@ -562,6 +579,7 @@ function setHoldingsSlotCount(){
 // Leaves broker, Long/Short mode and number-of-entries as they were, since
 // those are settings rather than data that gets mistyped.
 function resetHoldingsCalculator(){
+  holdingsUnitsAreActualPosition = false;
   for(let i=1; i<=MAX_HOLDINGS_SLOTS; i++){
     const row = document.querySelector(`.holdings-row[data-slot="${i}"]`);
     row.querySelector('.h-units').value = '';
@@ -990,7 +1008,14 @@ async function processHoldingsScreenshots(files){
     let shortTypeMismatch = false;
     if(!sideIsSell){
       // Long: actually drive the Delivery/Intraday/MTF toggle from what was read.
-      if(detectedType) setHoldingsSubMode(detectedType);
+      if(detectedType) setHoldingsSubMode(detectedType, true);
+      // The qty read off an order-report screenshot is the REAL, already-
+      // executed position — for MTF that already includes the 5x leverage.
+      // Flag it so computeHoldings() doesn't multiply it by 5 again (that
+      // double-counting was the bug: a real 930-share MTF buy was being
+      // shown as a 4,650-share position). Any other/no detected type falls
+      // back to the normal manual-entry semantics.
+      holdingsUnitsAreActualPosition = (detectedType === 'mtf');
     } else if(detectedType && detectedType !== 'intraday'){
       // Short: there's no toggle to set (shorting is always Intraday here,
       // matching real broker rules), but if the badge read back something
@@ -1021,6 +1046,7 @@ async function processHoldingsScreenshots(files){
     const modeLabels = {mtf:'MTF (5×)', intraday:'Intraday', delivery:'Delivery'};
     if(!sideIsSell && detectedType){
       msg += ` Mode set to ${modeLabels[detectedType]} — read from the product tag on your screenshot.`;
+      if(detectedType === 'mtf') msg += ' These are your actual total shares (already leveraged) — not multiplied by 5x again.';
     } else if(shortTypeMismatch){
       msg += ` Note: this reads as a short sale, always treated as Intraday here, but the screenshot's product tag looked like ${modeLabels[detectedType]} — worth a quick check in case that's an OCR misread.`;
     }
@@ -1070,12 +1096,24 @@ function computeHoldings(){
     return;
   }
 
-  const avgPrice = enteredValue/enteredUnits; // price per unit is unaffected by leverage
-  const leverageMult = isMTF ? 5 : 1;
+  const avgPrice = enteredValue/enteredUnits; // price per unit is unaffected by leverage either way
+
+  // Two different meanings for what's typed into the Units fields, in MTF
+  // mode only: normally (planning ahead) it's YOUR money's worth, and the
+  // calculator shows what buying that on 5x leverage would actually look
+  // like. But when it came from an OCR-read order-report screenshot, the
+  // qty is already the REAL total shares bought — it already includes the
+  // leverage, so multiplying by 5 again would double-count it. This flag
+  // (set only by the OCR path, see processHoldingsScreenshots) picks which
+  // one applies; leverageMult stays 1 in the "already real" case so every
+  // downstream use of it (including the per-slot charge calc just below)
+  // stays consistent without duplicating this branch elsewhere.
+  const useActualAsEntered = isMTF && holdingsUnitsAreActualPosition;
+  const leverageMult = (isMTF && !useActualAsEntered) ? 5 : 1;
   const totalUnits = enteredUnits * leverageMult;   // the REAL position size
   const totalValue = enteredValue * leverageMult;   // the REAL order/exposure value
-  const capital = enteredValue;                     // your own money, always what you typed in
-  const borrowed = isMTF ? enteredValue*4 : 0;
+  const capital = useActualAsEntered ? enteredValue/5 : enteredValue;       // your own money
+  const borrowed = isMTF ? (useActualAsEntered ? enteredValue*4/5 : enteredValue*4) : 0;
 
   // Charges apply per actual executed order — i.e. on the real (leveraged)
   // value of each slot for MTF, not on your unleveraged capital.
@@ -1119,7 +1157,15 @@ function computeHoldings(){
     }
   }
 
-  if(isMTF){
+  if(isMTF && useActualAsEntered){
+    html += `
+      <div class="hs-row"><span class="lbl">Actual position (from your order)</span><span class="val"><strong>${totalUnits} units</strong></span></div>
+      <div class="hs-row"><span class="lbl">Your capital (back-calculated, ≈1/5)</span><span class="val">${fmtCharge(capital)}</span></div>
+      <div class="hs-row"><span class="lbl">Broker-funded (borrowed)</span><span class="val">${fmtCharge(borrowed)}</span></div>
+      <div class="hs-row"><span class="lbl">Total position value (${slotsUsed} order${slotsUsed===1?'':'s'})</span><span class="val">${fmtCharge(totalValue)}</span></div>
+      <div class="fine-print">Read straight from your order screenshot as the real, already-leveraged position — not multiplied by 5x again.</div>
+    `;
+  } else if(isMTF){
     html += `
       <div class="hs-row"><span class="lbl">Your units (your money)</span><span class="val">${enteredUnits}</span></div>
       <div class="hs-row"><span class="lbl">Leveraged position</span><span class="val">${enteredUnits} × 5 = <strong>${totalUnits} units</strong></span></div>
