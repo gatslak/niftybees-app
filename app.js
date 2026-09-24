@@ -163,6 +163,85 @@ function loadPreopenCache(){
     return (obj && obj.date === istDateStr()) ? obj : null;
   }catch(e){ return null; }
 }
+// ---- Lopsided pre-open breadth hooter ----
+// If 35+ of the 50 Nifty constituents are moving the same way in pre-open
+// (a strongly one-sided session), sound a loud alarm so it's impossible to
+// miss even if you're not staring at the screen right at 9:00 AM. Browsers
+// block audio from playing with no prior user interaction on the page, so
+// this also (a) unlocks a shared AudioContext the moment you tap ANYWHERE
+// on the page, so if the app is already open when the window hits, the
+// hooter can actually play, and (b) always shows a bright on-screen banner
+// too, so the alert still lands even on a run where audio couldn't play.
+const HOOTER_FLAG_KEY = 'niftybees_hooter_fired_v1';
+const BREADTH_HOOTER_THRESHOLD = 35;
+let __hooterCtx = null;
+function unlockHooterAudio(){
+  try{
+    if(!__hooterCtx) __hooterCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if(__hooterCtx.state === 'suspended') __hooterCtx.resume().catch(()=>{});
+  }catch(e){ /* Web Audio unsupported — banner fallback still shows */ }
+}
+document.addEventListener('click', unlockHooterAudio);
+document.addEventListener('touchstart', unlockHooterAudio);
+
+function playHooter(){
+  try{
+    if(!__hooterCtx) __hooterCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = __hooterCtx;
+    if(ctx.state === 'suspended') ctx.resume().catch(()=>{});
+    const now = ctx.currentTime;
+    const duration = 3.5;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.9, now + 0.08);
+    gain.connect(ctx.destination);
+    const osc = ctx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.connect(gain);
+    // Two-tone siren sweep (like an alarm hooter), alternating every 0.35s.
+    let t = now, high = true;
+    while(t < now + duration){
+      osc.frequency.setValueAtTime(high ? 880 : 587, t);
+      high = !high;
+      t += 0.35;
+    }
+    gain.gain.setValueAtTime(0.9, now + duration - 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    osc.start(now);
+    osc.stop(now + duration + 0.05);
+  }catch(e){ /* audio unavailable — the on-screen banner is the fallback */ }
+}
+
+function showBreadthHooterBanner(adv, dec, unch){
+  const box = document.getElementById('breadth-box');
+  if(!box) return;
+  const existing = document.querySelector('.breadth-hooter-alert');
+  if(existing) existing.remove();
+  const strongAdv = adv >= dec;
+  const total = adv + dec + unch;
+  const banner = document.createElement('div');
+  banner.className = 'breadth-hooter-alert';
+  banner.innerHTML = `🔔 Strong pre-open breadth — <strong>${strongAdv ? adv+' advancing' : dec+' declining'}</strong> out of ${total} — lopsided open likely.`;
+  box.parentNode.insertBefore(banner, box);
+}
+
+// The banner re-shows on every live reading that still crosses the
+// threshold (harmless, and confirms the alert is still current if you
+// reopen the app mid-window). The SOUND fires at most once per calendar
+// day (IST) — without that the 60s auto-refresh would blast the hooter
+// every cycle for the whole ~8-minute window.
+function checkBreadthHooter(adv, dec, unch){
+  const a = Number(adv) || 0, d = Number(dec) || 0, u = Number(unch) || 0;
+  if(a < BREADTH_HOOTER_THRESHOLD && d < BREADTH_HOOTER_THRESHOLD) return;
+  showBreadthHooterBanner(a, d, u);
+  const today = istDateStr();
+  try{
+    if(localStorage.getItem(HOOTER_FLAG_KEY) === today) return;
+    localStorage.setItem(HOOTER_FLAG_KEY, today);
+  }catch(e){ /* if storage is unavailable we can't dedupe — still alert once now */ }
+  playHooter();
+}
+
 function showPreopenValue(pc){
   document.getElementById('val-preopen').innerHTML = trendArrow(pc) + (pc>0?'+':'')+pc.toFixed(2)+'%';
   document.getElementById('val-preopen').className = 'card-value ' + (pc>0?'bull':pc<0?'bear':'flat');
@@ -182,6 +261,7 @@ async function fetchPreopen(){
     showPreopenValue(pc);
     renderBreadth(j.advances, j.declines, j.unchanged);
     savePreopenCache(pc, j.advances, j.declines, j.unchanged);
+    checkBreadthHooter(j.advances, j.declines, j.unchanged);
     const windowOpen = String(row.status||'').toUpperCase()==='OPEN';
     setBadge('preopen','live', windowOpen ? 'Nifty 50 pre-open indicative move' : 'Last pre-open reading — window is closed now (~9:00–9:08 AM IST)');
   }catch(e){

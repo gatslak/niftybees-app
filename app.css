@@ -740,6 +740,24 @@ svg.pred-chart{ width:100%; height:auto; display:block; }
 }
 .gl-pct{font-family:Georgia,'Times New Roman',serif;font-size:13px;}
 
+/* ---- Lopsided pre-open breadth alert (35+/50 one-sided) ---- */
+.breadth-hooter-alert{
+  margin-top:12px;
+  padding:11px 14px;
+  border-radius:12px;
+  background:linear-gradient(90deg, rgba(212,162,76,0.22), rgba(212,162,76,0.08));
+  border:1px solid var(--gold-dim);
+  color:var(--text);
+  font-size:12.5px;
+  line-height:1.5;
+  animation:hooterPulse 1.6s ease-in-out infinite;
+}
+.breadth-hooter-alert strong{color:var(--gold);}
+@keyframes hooterPulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(212,162,76,0.35);}
+  50%{box-shadow:0 0 0 6px rgba(212,162,76,0);}
+}
+
 /* ---- Pre-open breadth (advances / declines / unchanged) ---- */
 #breadth-box{
   margin-top:12px;
