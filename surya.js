@@ -1049,6 +1049,7 @@ async function getHist(sym, range='1y', interval='1d'){
 const cur = (meta) => (meta && meta.currency) || 'INR';
 function money(v, meta, dp=2){
   const c = cur(meta);
+  if (meta && /^\^/.test(meta.symbol || '')) return v.toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
   if (c === 'INR') return inr(v, dp);
   return (c === 'USD' ? '$' : c + ' ') + v.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp });
 }
@@ -1139,7 +1140,7 @@ function periodFromE(E){
   const lab = days >= 365 ? `${+(days/365).toFixed(1)} ${L('year','साल','saal')}` : days >= 28 ? `${Math.round(days/30.4)} ${L('month','महीने','mahine')}` : `${Math.round(days)} ${L('days','दिन','din')}`;
   return { from: f, label: lab, days };
 }
-function pickRange(from){ const age = (Date.now() - from)/864e5; return age <= 360 ? ['1y','1d'] : age <= 1800 ? ['5y','1wk'] : ['max','1mo']; }
+function pickRange(from){ const age = (Date.now() - from)/864e5; return age <= 372 ? ['1y','1d'] : age <= 1800 ? ['5y','1wk'] : ['max','1mo']; }
 function closeAt(d, when){ let idx = 0; for (let i = 0; i < d.t.length; i++){ if (d.t[i] <= when.getTime() + 864e5) idx = i; else break; } return { v: d.c[idx], t: new Date(d.t[idx]) }; }
 
 async function hReturns(x, E, showTable){
