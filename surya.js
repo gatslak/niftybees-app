@@ -310,14 +310,14 @@ function hBias(){
   const verdictLocal = LANG === 'en' ? verdict :
     /bull/i.test(verdict) ? L('','तेजी की ओर झुकाव','Bullish (tezi) lean') : /bear/i.test(verdict) ? L('','मंदी की ओर झुकाव','Bearish (mandi) lean') : L('','सपाट / न्यूट्रल','Neutral / flat');
   let h = `${L('Pre-market bias','प्री-मार्केट बायस','Pre-market bias')}: <b class="${/bull/i.test(verdict)?'up':/bear/i.test(verdict)?'down':''}">${esc(verdictLocal)}</b><div class="s-fine">${esc(score)}</div>`;
-  items.forEach(([id, lab]) => { const v = txt(id); if (v && v !== '--' && !/pending|refreshing/i.test(v)) h += row(lab, esc(v)); });
+  items.forEach(([id, lab]) => { const v = txt(id); if (v && !/^[-—\s]+$/.test(v) && !/pending|refreshing/i.test(v)) h += row(lab, esc(v)); });
   h += `<div class="s-fine">${L('A weighted lean from these signals — not a prediction. Confirm against the 9:15 open.','इन संकेतों का भारित झुकाव — भविष्यवाणी नहीं। 9:15 की ओपनिंग से पुष्टि करें।','Ye signals ka weighted lean hai — prediction nahi. 9:15 open se confirm karein.')}</div>`;
   return { html: h };
 }
 
 function hSignal(){
-  const chip = txt('predChip');
-  if (!chip || chip === '—') return { html: L('The 30–60 min signal hasn\'t loaded yet.','30–60 मिनट का सिग्नल अभी लोड नहीं हुआ।','30–60 min signal abhi load nahi hua.'), actions: noPrice().actions };
+  const chip = (txt('predChip').match(/BUY|SELL|HOLD/) || [''])[0];
+  if (!chip) return { html: L('The 30–60 min signal hasn\'t loaded yet.','30–60 मिनट का सिग्नल अभी लोड नहीं हुआ।','30–60 min signal abhi load nahi hua.'), actions: noPrice().actions };
   const chipLocal = LANG === 'en' ? chip : ({BUY:L('','खरीद (BUY)','BUY (kharid)'), SELL:L('','बिक्री (SELL)','SELL (bikri)'), HOLD:L('','रुकें (HOLD)','HOLD (ruko)')}[chip] || chip);
   let h = `${L('30–60 min signal','30–60 मिनट सिग्नल','30–60 min signal')}: <b class="${chip==='BUY'?'up':chip==='SELL'?'down':''}">${esc(chipLocal)}</b> · ${esc(txt('predConf'))}`;
   const m30 = txt('predMid30'), b30 = txt('predBand30'), m60 = txt('predMid60'), b60 = txt('predBand60');
@@ -335,7 +335,7 @@ function hNews(){
   const links = box ? [...box.querySelectorAll('a')].slice(0,5) : [];
   if (!links.length) return { html: L('Headlines aren\'t loaded yet.','हेडलाइंस अभी लोड नहीं हुईं।','Headlines abhi load nahi hui.'), actions: noPrice().actions };
   return { html: `<b>${L('Top market headlines','मुख्य बाज़ार समाचार','Top market headlines')}</b><ul class="s-list">` +
-    links.map(a => `<li><a href="${esc(a.href)}" target="_blank" rel="noopener">${esc(a.textContent.trim())}</a></li>`).join('') + '</ul>' };
+    links.map(a => `<li><a href="${esc(a.href)}" target="_blank" rel="noopener">${esc(a.textContent.trim().replace(/&amp;/g,'&'))}</a></li>`).join('') + '</ul>' };
 }
 
 function hHoldings(){
